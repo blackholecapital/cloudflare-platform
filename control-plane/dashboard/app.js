@@ -24,30 +24,31 @@ function buildRequest() {
 
 }
 
-function previewPlan() {
+function previewPlan(){
 
-    const req = buildRequest();
+const req=buildRequest();
 
-    document.getElementById("output").textContent =
-JSON.stringify({
+fetch("http://localhost:8787/api/preview",{
 
-    status: "PLAN",
+method:"POST",
 
-    actions: [
+headers:{
+"Content-Type":"application/json"
+},
 
-        "Create Pages Project",
+body:JSON.stringify(req)
 
-        "Create Workers",
+})
 
-        "Create D1 Database",
+.then(r=>r.json())
 
-        "Create KV Namespace"
+.then(data=>{
 
-    ],
+document.getElementById("output").textContent=
 
-    request: req
+JSON.stringify(data,null,2);
 
-}, null, 2);
+});
 
 }
 
