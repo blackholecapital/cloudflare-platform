@@ -13,11 +13,18 @@ export async function cloudflareRequest(path: string) {
     }
   );
 
+  const body = await response.text();
+
   if (!response.ok) {
     throw new Error(
-      `Cloudflare API returned ${response.status} ${response.statusText}`
+      [
+        `Cloudflare API Error`,
+        `Status : ${response.status}`,
+        `Path   : ${path}`,
+        `Body   : ${body}`,
+      ].join("\n")
     );
   }
 
-  return response.json();
+  return JSON.parse(body);
 }
