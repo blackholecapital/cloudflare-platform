@@ -1,62 +1,94 @@
+import { useState } from "react";
+import "./App.css";
+
 export default function App() {
+
+  const [customer,setCustomer] = useState("");
+  const [domain,setDomain] = useState("");
+  const [email,setEmail] = useState("");
+
   return (
-    <main
-      style={{
-        fontFamily: "Inter, sans-serif",
-        maxWidth: "1100px",
-        margin: "0 auto",
-        padding: "3rem"
-      }}
-    >
-      <h1>☁️ Cloudflare Operations Platform</h1>
 
-      <p>
-        Infrastructure control plane for Cloudflare resources.
-      </p>
+    <div className="container">
 
-      <hr />
+      <div className="card">
 
-      <h2>Status</h2>
+        <h1>☁ Cloudflare Operations Platform</h1>
 
-      <table>
-        <tbody>
-          <tr>
-            <td>Workers</td>
-            <td>40</td>
-          </tr>
+        <p className="subtitle">
+          Customer Onboarding
+        </p>
 
-          <tr>
-            <td>D1</td>
-            <td>7</td>
-          </tr>
+        <label>
+          Company Name
+        </label>
 
-          <tr>
-            <td>KV</td>
-            <td>5</td>
-          </tr>
+        <input
+          value={customer}
+          onChange={(e)=>setCustomer(e.target.value)}
+          placeholder="Black Hole Capital"
+        />
 
-          <tr>
-            <td>Queues</td>
-            <td>13</td>
-          </tr>
+        <label>
+          Domain
+        </label>
 
-          <tr>
-            <td>Pages</td>
-            <td>10</td>
-          </tr>
-        </tbody>
-      </table>
+        <input
+          value={domain}
+          onChange={(e)=>setDomain(e.target.value)}
+          placeholder="blackhole.ai"
+        />
 
-      <hr />
+        <label>
+          Contact Email
+        </label>
 
-      <h2>Upcoming Commands</h2>
+        <input
+          value={email}
+          onChange={(e)=>setEmail(e.target.value)}
+          placeholder="admin@example.com"
+        />
 
-      <ul>
-        <li>doctor</li>
-        <li>inventory</li>
-        <li>plan</li>
-        <li>apply</li>
-      </ul>
-    </main>
+        <h3>Services</h3>
+
+        <div className="checks">
+
+          <label><input type="checkbox" defaultChecked/> Pages</label>
+
+          <label><input type="checkbox" defaultChecked/> Workers</label>
+
+          <label><input type="checkbox" defaultChecked/> D1</label>
+
+          <label><input type="checkbox" defaultChecked/> KV</label>
+
+          <label><input type="checkbox"/> R2</label>
+
+          <label><input type="checkbox"/> AI Concierge</label>
+
+          <label><input type="checkbox"/> Email</label>
+
+          <label><input type="checkbox"/> SMS</label>
+
+          <label><input type="checkbox"/> Voice</label>
+
+        </div>
+
+        <div className="buttons">
+
+          <button>
+            Preview Plan
+          </button>
+
+          <button className="primary">
+            Provision Customer
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
   );
+
 }
