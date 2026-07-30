@@ -1,45 +1,73 @@
-function values(){
+function selectedServices() {
 
-return{
-
-company:document.getElementById("company").value,
-
-domain:document.getElementById("domain").value,
-
-email:document.getElementById("email").value
-
-};
+    return [...document.querySelectorAll(".services input")]
+        .filter(c => c.checked)
+        .map(c => c.parentElement.textContent.trim());
 
 }
 
-function previewPlan(){
+function buildRequest() {
 
-const data=values();
+    return {
 
-document.getElementById("output").textContent=
+        company: document.getElementById("company").value.trim(),
 
-JSON.stringify({
+        domain: document.getElementById("domain").value.trim(),
 
-action:"preview",
+        email: document.getElementById("email").value.trim(),
 
-customer:data
+        services: selectedServices(),
 
-},null,2);
+        requestedAt: new Date().toISOString()
+
+    };
 
 }
 
-function provision(){
+function previewPlan() {
 
-const data=values();
+    const req = buildRequest();
 
-document.getElementById("output").textContent=
-
+    document.getElementById("output").textContent =
 JSON.stringify({
 
-action:"provision",
+    status: "PLAN",
 
-customer:data
+    actions: [
 
-},null,2);
+        "Create Pages Project",
+
+        "Create Workers",
+
+        "Create D1 Database",
+
+        "Create KV Namespace"
+
+    ],
+
+    request: req
+
+}, null, 2);
+
+}
+
+function provision() {
+
+    const req = buildRequest();
+
+    document.getElementById("output").textContent =
+JSON.stringify({
+
+    status: "READY",
+
+    message:
+    "Provision endpoint not connected yet.",
+
+    nextEndpoint:
+    "/api/provision",
+
+    request: req
+
+}, null, 2);
 
 }
