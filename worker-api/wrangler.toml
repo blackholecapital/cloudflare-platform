@@ -1,0 +1,7 @@
+name = "cloudflare-platform-api"
+
+main = "src/index.js"
+
+compatibility_date = "2025-07-30"
+
+workers_dev = true

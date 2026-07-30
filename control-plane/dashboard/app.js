@@ -28,7 +28,7 @@ function previewPlan(){
 
 const req=buildRequest();
 
-fetch("http://localhost:8787/api/preview",{
+fetch("https://cloudflare-platform-api.cryptocapitalgroupfl.workers.dev/api/preview",{
 
 method:"POST",
 
