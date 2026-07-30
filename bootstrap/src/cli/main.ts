@@ -3,15 +3,16 @@
 import { Command } from "commander";
 import { loadManifest } from "../utils/loadManifest";
 import { collectInventory } from "../engine/inventory";
+import { buildPlan } from "../engine/planner";
 
 const program = new Command();
 
 program
   .name("cloudflare-platform")
-  .version("0.3.0");
+  .version("0.4.0");
 
 program
-  .command("inventory")
+  .command("plan")
   .argument(
     "[manifest]",
     "Customer manifest",
@@ -23,15 +24,28 @@ program
 
     const inventory = await collectInventory();
 
+    const plan = buildPlan(manifest, inventory);
+
     console.log("");
-    console.log("Cloudflare Inventory");
-    console.log("====================");
+    console.log("Execution Plan");
+    console.log("==============");
     console.log("");
 
-    console.log("Customer :", manifest.customer.name);
+    for (const op of plan.operations) {
+      console.log(
+        `${op.action.padEnd(8)} ${op.type.padEnd(8)} ${op.resource}`
+      );
+    }
+
     console.log("");
 
-    console.log(JSON.stringify(inventory,null,2));
+    const summary = {
+      create: plan.operations.filter(o => o.action === "create").length,
+      delete: plan.operations.filter(o => o.action === "delete").length,
+      noop: plan.operations.filter(o => o.action === "noop").length
+    };
+
+    console.table(summary);
 
   });
 
