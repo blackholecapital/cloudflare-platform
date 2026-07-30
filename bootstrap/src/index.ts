@@ -1,8 +1,14 @@
 import { loadManifest } from "./utils/loadManifest";
 
-const manifest = loadManifest(
-  "customer-manifests/examples/blackhole.yaml"
-);
+try {
+  const manifest = loadManifest(
+    "customer-manifests/examples/blackhole.yaml"
+  );
 
-console.log("Cloudflare Platform Bootstrap");
-console.log(JSON.stringify(manifest, null, 2));
+  console.log("✓ Manifest validated");
+  console.log(JSON.stringify(manifest, null, 2));
+} catch (err) {
+  console.error("✗ Manifest validation failed");
+  console.error(err);
+  process.exit(1);
+}
