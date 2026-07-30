@@ -1,22 +1,23 @@
 import { loadManifest } from "./utils/loadManifest";
-import { getCloudflareConfig } from "./cloudflare/auth";
+import { listWorkers } from "./cloudflare/resources";
 
-try {
+async function main() {
   const manifest = loadManifest(
     "customer-manifests/examples/blackhole.yaml"
   );
 
-  const cloudflare = getCloudflareConfig();
-
   console.log("✓ Manifest validated");
-  console.log("✓ Cloudflare configuration loaded");
 
-  console.log({
-    accountId: cloudflare.accountId,
-    customer: manifest.customer.id,
-    zone: manifest.cloudflare.zone,
-  });
-} catch (err) {
+  const workers = await listWorkers();
+
+  console.log("Customer:", manifest.customer.name);
+  console.log("Zone:", manifest.cloudflare.zone);
+
+  console.log("\nWorkers:\n");
+  console.log(JSON.stringify(workers.result, null, 2));
+}
+
+main().catch((err) => {
   console.error(err);
   process.exit(1);
-}
+});
