@@ -1,0 +1,17 @@
+customer:
+  id: blackhole
+  name: Black Hole Capital
+
+cloudflare:
+  accountId: YOUR_ACCOUNT_ID
+  zone: blackhole.ai
+
+gpu:
+  endpoint: https://gpu.blackhole.ai
+
+providers:
+  google: true
+  slack: true
+  twilio: true
+  docusign: true
+  stripe: false
