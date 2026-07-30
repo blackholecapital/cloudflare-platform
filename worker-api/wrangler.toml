@@ -5,3 +5,6 @@ main = "src/index.js"
 compatibility_date = "2025-07-30"
 
 workers_dev = true
+
+[vars]
+CLOUDFLARE_ACCOUNT_ID = "841893af4dee7e52549a8adbef936100"

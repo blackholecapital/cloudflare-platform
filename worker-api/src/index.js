@@ -112,7 +112,7 @@ app.post("/api/provision", async c => {
 
   const request = await c.req.json();
 
-  const result = await provisionCustomer(request);
+  const result = await provisionCustomer(request, c.env);
 
   return c.json({
 
@@ -125,4 +125,20 @@ app.post("/api/provision", async c => {
 });
 
 
+
+app.onError((err, c) => {
+
+  console.error(err);
+
+  return c.json({
+
+    error: err.message,
+
+    stack: err.stack
+
+  }, 500);
+
+});
+
 export default app;
+
