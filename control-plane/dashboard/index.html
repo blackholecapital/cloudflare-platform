@@ -6,7 +6,7 @@
 <meta charset="UTF-8">
 
 <meta name="viewport"
-      content="width=device-width,initial-scale=1">
+content="width=device-width,initial-scale=1">
 
 <title>Cloudflare Operations Platform</title>
 
@@ -20,13 +20,33 @@
 
 <div class="card">
 
+<header>
+
+<div>
+
 <h1>☁ Cloudflare Operations Platform</h1>
 
 <p class="subtitle">
 
-Provision Cloudflare customers in one place.
+Customer Provisioning Console
 
 </p>
+
+</div>
+
+<div class="status">
+
+● Connected
+
+</div>
+
+</header>
+
+<div class="content">
+
+<div class="panel">
+
+<h2>Customer Information</h2>
 
 <div class="grid">
 
@@ -34,7 +54,7 @@ Provision Cloudflare customers in one place.
 
 Company
 
-<input id="company">
+<input id="company" placeholder="Black Hole Capital">
 
 </label>
 
@@ -42,33 +62,17 @@ Company
 
 Domain
 
-<input id="domain">
+<input id="domain" placeholder="blackhole.ai">
 
 </label>
 
 <label>
 
-Email
+Contact Email
 
-<input id="email">
+<input id="email" placeholder="admin@blackhole.ai">
 
 </label>
-
-</div>
-
-<h2>Services</h2>
-
-<div class="services">
-
-<label><input type="checkbox" checked> Workers</label>
-<label><input type="checkbox" checked> Pages</label>
-<label><input type="checkbox" checked> D1</label>
-<label><input type="checkbox" checked> KV</label>
-<label><input type="checkbox"> R2</label>
-<label><input type="checkbox"> AI Concierge</label>
-<label><input type="checkbox"> Email</label>
-<label><input type="checkbox"> SMS</label>
-<label><input type="checkbox"> Voice</label>
 
 </div>
 
@@ -81,7 +85,7 @@ Preview Plan
 </button>
 
 <button class="primary"
-        onclick="provision()">
+onclick="provision()">
 
 Provision Customer
 
@@ -89,7 +93,51 @@ Provision Customer
 
 </div>
 
-<pre id="output"></pre>
+<pre id="output">
+
+Ready.
+
+</pre>
+
+</div>
+
+<div class="panel">
+
+<h2>Services</h2>
+
+<div class="services">
+
+<label><input type="checkbox" checked>Cloudflare Pages</label>
+<label><input type="checkbox" checked>Workers</label>
+<label><input type="checkbox" checked>D1 Database</label>
+<label><input type="checkbox" checked>KV</label>
+<label><input type="checkbox">R2 Storage</label>
+<label><input type="checkbox">Email</label>
+<label><input type="checkbox">SMS</label>
+<label><input type="checkbox">Voice</label>
+<label><input type="checkbox">AI Concierge</label>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="footer">
+
+<div>
+
+Cloudflare Platform v0.1
+
+</div>
+
+<div>
+
+Black Hole Capital
+
+</div>
+
+</div>
 
 </div>
 
