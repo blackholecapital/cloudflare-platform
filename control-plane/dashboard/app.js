@@ -52,23 +52,23 @@ JSON.stringify(data,null,2);
 
 }
 
-function provision() {
 
-    const req = buildRequest();
+async function provision(){
+
+    const r = await fetch(
+        "https://cloudflare-platform-api.cryptocapitalgroupfl.workers.dev/api/provision",
+        {
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body:JSON.stringify(buildRequest())
+        }
+    );
+
+    const data = await r.json();
 
     document.getElementById("output").textContent =
-JSON.stringify({
-
-    status: "READY",
-
-    message:
-    "Provision endpoint not connected yet.",
-
-    nextEndpoint:
-    "/api/provision",
-
-    request: req
-
-}, null, 2);
+        JSON.stringify(data,null,2);
 
 }
