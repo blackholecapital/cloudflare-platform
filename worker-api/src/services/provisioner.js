@@ -2,6 +2,7 @@ import { createD1 } from "../providers/d1.js";
 import { createKV } from "../providers/kv.js";
 import { createQueue } from "../providers/queues.js";
 import { createR2 } from "../providers/r2.js";
+import { createPagesProject } from "../providers/pages.js";
 import { saveState, getState } from "../state/store.js";
 
 
@@ -52,6 +53,39 @@ export async function provisionCustomer(
 
 
     for (const service of request.services){
+
+        console.log("SERVICE RECEIVED:", service);
+
+
+        if(service === "Cloudflare Pages"){
+
+            const pages =
+                await createPagesProject(
+                    env,
+                    `${customer}-site`
+                );
+
+
+            resources.pages = pages.id;
+
+
+            results.push({
+
+                service,
+
+                status:"created",
+
+                id:pages.id,
+
+                name:pages.name
+
+            });
+
+
+            continue;
+
+        }
+
 
 
         if(service === "D1 Database"){
