@@ -9,23 +9,13 @@ addEventListener("fetch", event => {
 
     event.respondWith(
         new Response(
-            "Worker ${name} online",
-            {
-                headers:{
-                    "content-type":"text/plain"
-                }
-            }
+            "Worker ${name} online"
         )
     );
 
 });
 `;
 
-
-    console.log(
-        "WORKER UPLOAD MODE",
-        "classic-javascript"
-    );
 
     const response =
         await fetch(
