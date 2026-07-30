@@ -2,67 +2,67 @@ import { Hono } from "hono";
 
 const app = new Hono();
 
-app.get("/",c=>{
+app.get("/", c => {
+  return c.json({
+    service: "Cloudflare Operations Platform",
+    version: "1.0.0",
+    status: "online"
+  });
+});
 
-    return c.json({
+app.get("/api/health", c => {
+  return c.json({
+    connected: true,
+    status: "healthy"
+  });
+});
 
-        service:"Cloudflare Operations Platform",
+app.post("/api/preview", async c => {
 
-        status:"online"
+  const request = await c.req.json();
 
-    });
+  return c.json({
+
+    status: "preview",
+
+    request,
+
+    actions: [
+      {
+        type: "pages",
+        action: "create"
+      },
+      {
+        type: "worker",
+        action: "create"
+      },
+      {
+        type: "d1",
+        action: "create"
+      },
+      {
+        type: "kv",
+        action: "create"
+      }
+    ]
+
+  });
 
 });
 
-app.get("/api/health",c=>{
+app.post("/api/provision", async c => {
 
-    return c.json({
+  const request = await c.req.json();
 
-        connected:true,
+  return c.json({
 
-        status:"healthy"
+    status: "accepted",
 
-    });
+    request,
 
-});
+    message: "Provisioning engine coming next."
 
-app.post("/api/preview",async c=>{
-
-    const request=await c.req.json();
-
-    return c.json({
-
-        status:"preview",
-
-        request,
-
-        actions:[
-
-            "Create Pages",
-
-            "Create Worker",
-
-            "Create D1",
-
-            "Create KV"
-
-        ]
-
-    });
-
-});
-
-app.post("/api/provision",async c=>{
-
-    const request=await c.req.json();
-
-    return c.json({
-
-        status:"queued",
-
-        request
-
-    });
+  });
 
 });
 
