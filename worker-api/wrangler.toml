@@ -8,3 +8,8 @@ workers_dev = true
 
 [vars]
 CLOUDFLARE_ACCOUNT_ID = "841893af4dee7e52549a8adbef936100"
+
+[[d1_databases]]
+binding = "STATE_DB"
+database_name = "cloudflare-platform-state"
+database_id = "cc19f5f8-1909-40f7-87f3-fbd934806380"
