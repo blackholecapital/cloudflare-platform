@@ -10,3 +10,6 @@ coverage/
 
 worker-api/node_modules
 worker-api/.wrangler
+
+# Dashboard local backups
+control-plane/dashboard/backups/
