@@ -2,14 +2,19 @@
 
 import { Command } from "commander";
 import { loadManifest } from "../utils/loadManifest";
-import { listWorkers } from "../cloudflare/resources";
+import {
+  listWorkers,
+  listD1Databases,
+  listKVNamespaces,
+  listQueues,
+  listPagesProjects
+} from "../cloudflare/resources";
 
 const program = new Command();
 
 program
   .name("cloudflare-platform")
-  .description("Cloudflare Platform Bootstrap")
-  .version("0.1.0");
+  .version("0.2.0");
 
 program
   .command("inventory")
@@ -21,21 +26,34 @@ program
   .action(async (manifestPath) => {
     const manifest = loadManifest(manifestPath);
 
-    console.log(`Customer : ${manifest.customer.name}`);
-    console.log(`Zone     : ${manifest.cloudflare.zone}`);
+    console.log("");
+    console.log("Cloudflare Inventory");
+    console.log("====================");
     console.log("");
 
-    const workers = await listWorkers();
-
-    console.log("Workers");
-    console.log("-------");
-
-    for (const worker of workers.result) {
-      console.log(worker.id);
-    }
-
+    console.log("Customer :", manifest.customer.name);
+    console.log("Zone     :", manifest.cloudflare.zone);
     console.log("");
-    console.log(`Total Workers: ${workers.result.length}`);
+
+    const [
+      workers,
+      d1,
+      kv,
+      queues,
+      pages
+    ] = await Promise.all([
+      listWorkers(),
+      listD1Databases(),
+      listKVNamespaces(),
+      listQueues(),
+      listPagesProjects()
+    ]);
+
+    console.log(`Workers : ${workers.result.length}`);
+    console.log(`D1      : ${d1.result.length}`);
+    console.log(`KV      : ${kv.result.length}`);
+    console.log(`Queues  : ${queues.result.length}`);
+    console.log(`Pages   : ${pages.result.length}`);
   });
 
 program.parse();
