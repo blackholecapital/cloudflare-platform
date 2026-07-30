@@ -4,23 +4,42 @@ export async function cfRequest(
     options = {}
 ){
 
+    const headers = {
+        Authorization:
+            `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+
+        ...(options.headers || {})
+    };
+
+
+    const isFormData =
+        options.body instanceof FormData;
+
+
+    if(
+        !headers["Content-Type"] &&
+        options.body &&
+        !isFormData
+    ){
+
+        headers["Content-Type"] =
+            "application/json";
+
+    }
+
+
     const response = await fetch(
         `https://api.cloudflare.com/client/v4${path}`,
         {
             ...options,
-            headers:{
-                Authorization:
-                    `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-
-                "Content-Type":
-                    "application/json",
-
-                ...(options.headers || {})
-            }
+            headers
         }
     );
 
-    const data = await response.json();
+
+    const data =
+        await response.json();
+
 
     if(!data.success){
 
@@ -29,6 +48,7 @@ export async function cfRequest(
         );
 
     }
+
 
     return data.result;
 

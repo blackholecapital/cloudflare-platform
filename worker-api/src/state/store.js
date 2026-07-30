@@ -19,16 +19,8 @@ export async function saveState(
     state
 ){
 
-    console.log(
-        "FULL STATE",
-        JSON.stringify(state)
-    );
-
     const createdAt =
         state.createdAt ?? new Date().toISOString();
-
-    const safeCustomer =
-        customer ?? "unknown";
 
 
     await env.STATE_DB
@@ -45,8 +37,8 @@ export async function saveState(
             `
         )
         .bind(
-            safeCustomer,
-            state.customer ?? safeCustomer,
+            customer,
+            state.customer ?? customer,
             state.domain ?? "",
             createdAt
         )
@@ -58,15 +50,6 @@ export async function saveState(
         of Object.entries(state.resources ?? {})
     ){
 
-        console.log(
-            "STATE RESOURCE",
-            JSON.stringify({
-                type,
-                value
-            })
-        );
-
-
         await env.STATE_DB
             .prepare(
                 `
@@ -76,16 +59,18 @@ export async function saveState(
                     resource_type,
                     resource_id,
                     resource_name,
+                    metadata,
                     created_at
                 )
-                VALUES (?,?,?,?,?)
+                VALUES (?,?,?,?,?,?)
                 `
             )
             .bind(
-                safeCustomer,
-                type ?? "unknown",
+                customer,
+                type,
                 value ?? "",
                 value ?? "",
+                JSON.stringify({}),
                 createdAt
             )
             .run();

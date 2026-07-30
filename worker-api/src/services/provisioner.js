@@ -3,6 +3,7 @@ import { createKV } from "../providers/kv.js";
 import { createQueue } from "../providers/queues.js";
 import { createR2 } from "../providers/r2.js";
 import { createPagesProject } from "../providers/pages.js";
+import { createWorker } from "../providers/workers.js";
 import { saveState, getState } from "../state/store.js";
 
 
@@ -54,7 +55,40 @@ export async function provisionCustomer(
 
     for (const service of request.services){
 
+        console.log("SERVICE RECEIVED:", JSON.stringify(service));
+
         console.log("SERVICE RECEIVED:", service);
+
+
+        if(service === "Worker"){
+
+            const worker =
+                await createWorker(
+                    env,
+                    `${customer}-api`
+                );
+
+
+            resources.worker = worker.id;
+
+
+            results.push({
+
+                service,
+
+                status:"created",
+
+                id:worker.id,
+
+                name:worker.name
+
+            });
+
+
+            continue;
+
+        }
+
 
 
         if(service === "Cloudflare Pages"){
