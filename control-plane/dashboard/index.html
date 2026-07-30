@@ -1,13 +1,102 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>dashboard</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width,initial-scale=1">
+
+<title>Cloudflare Operations Platform</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card">
+
+<h1>☁ Cloudflare Operations Platform</h1>
+
+<p class="subtitle">
+
+Provision Cloudflare customers in one place.
+
+</p>
+
+<div class="grid">
+
+<label>
+
+Company
+
+<input id="company">
+
+</label>
+
+<label>
+
+Domain
+
+<input id="domain">
+
+</label>
+
+<label>
+
+Email
+
+<input id="email">
+
+</label>
+
+</div>
+
+<h2>Services</h2>
+
+<div class="services">
+
+<label><input type="checkbox" checked> Workers</label>
+<label><input type="checkbox" checked> Pages</label>
+<label><input type="checkbox" checked> D1</label>
+<label><input type="checkbox" checked> KV</label>
+<label><input type="checkbox"> R2</label>
+<label><input type="checkbox"> AI Concierge</label>
+<label><input type="checkbox"> Email</label>
+<label><input type="checkbox"> SMS</label>
+<label><input type="checkbox"> Voice</label>
+
+</div>
+
+<div class="buttons">
+
+<button onclick="previewPlan()">
+
+Preview Plan
+
+</button>
+
+<button class="primary"
+        onclick="provision()">
+
+Provision Customer
+
+</button>
+
+</div>
+
+<pre id="output"></pre>
+
+</div>
+
+</div>
+
+<script src="app.js"></script>
+
+</body>
+
 </html>
