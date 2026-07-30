@@ -1,74 +1,122 @@
-function selectedServices() {
+const API =
+"https://cloudflare-platform-api.cryptocapitalgroupfl.workers.dev";
 
-    return [...document.querySelectorAll(".services input")]
-        .filter(c => c.checked)
-        .map(c => c.parentElement.textContent.trim());
+
+function selectedServices(){
+
+    return [
+        ...document.querySelectorAll(".services input:checked")
+    ]
+    .map(
+        c => c.value
+    );
 
 }
 
-function buildRequest() {
+
+function buildRequest(){
 
     return {
 
-        company: document.getElementById("company").value.trim(),
+        company:
+        document.getElementById("company").value.trim(),
 
-        domain: document.getElementById("domain").value.trim(),
+        domain:
+        document.getElementById("domain").value.trim(),
 
-        email: document.getElementById("email").value.trim(),
+        email:
+        document.getElementById("email").value.trim(),
 
-        services: selectedServices(),
+        services:
+        selectedServices(),
 
-        requestedAt: new Date().toISOString()
+        requestedAt:
+        new Date().toISOString()
 
     };
 
 }
 
-function previewPlan(){
 
-const req=buildRequest();
 
-fetch("https://cloudflare-platform-api.cryptocapitalgroupfl.workers.dev/api/preview",{
+async function previewPlan(){
 
-method:"POST",
+    const req = buildRequest();
 
-headers:{
-"Content-Type":"application/json"
-},
 
-body:JSON.stringify(req)
+    const response =
+        await fetch(
+            `${API}/api/preview`,
+            {
+                method:"POST",
 
-})
+                headers:{
+                    "Content-Type":
+                    "application/json"
+                },
 
-.then(r=>r.json())
+                body:
+                JSON.stringify(req)
+            }
+        );
 
-.then(data=>{
 
-document.getElementById("output").textContent=
+    const data =
+        await response.json();
 
-JSON.stringify(data,null,2);
 
-});
+    document.getElementById(
+        "output"
+    ).textContent =
+        JSON.stringify(
+            data,
+            null,
+            2
+        );
 
 }
 
 
+
 async function provision(){
 
-    const r = await fetch(
-        "https://cloudflare-platform-api.cryptocapitalgroupfl.workers.dev/api/provision",
-        {
-            method:"POST",
-            headers:{
-                "Content-Type":"application/json"
-            },
-            body:JSON.stringify(buildRequest())
-        }
-    );
+    const req = buildRequest();
 
-    const data = await r.json();
 
-    document.getElementById("output").textContent =
-        JSON.stringify(data,null,2);
+    document.getElementById(
+        "output"
+    ).textContent =
+        "Provisioning...";
+
+
+    const response =
+        await fetch(
+            `${API}/api/provision`,
+            {
+                method:"POST",
+
+                headers:{
+                    "Content-Type":
+                    "application/json"
+                },
+
+                body:
+                JSON.stringify(req)
+            }
+        );
+
+
+    const data =
+        await response.json();
+
+
+    document.getElementById(
+        "output"
+    ).textContent =
+        JSON.stringify(
+            data,
+            null,
+            2
+        );
 
 }
