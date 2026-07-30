@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { provisionCustomer } from "./services/provisioner.js";
+import { getCustomerState } from "./routes/state.js";
 
 
 const app = new Hono();
@@ -60,6 +61,37 @@ app.get("/", c => {
     version: "1.0.0",
     status: "online"
   });
+
+});
+
+
+
+
+app.get("/api/customer/:id", async c => {
+
+    const customer =
+        c.req.param("id");
+
+    const state =
+        await getCustomerState(
+            c.env,
+            customer
+        );
+
+
+    if(!state){
+
+        return c.json(
+            {
+                error:"Customer not found"
+            },
+            404
+        );
+
+    }
+
+
+    return c.json(state);
 
 });
 
