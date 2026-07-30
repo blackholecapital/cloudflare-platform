@@ -1,5 +1,6 @@
 import { createD1 } from "../providers/d1.js";
 import { createKV } from "../providers/kv.js";
+import { createQueue } from "../providers/queues.js";
 
 export async function provisionCustomer(request, env){
 
@@ -23,6 +24,31 @@ export async function provisionCustomer(request, env){
                 id: namespace.id,
 
                 title: namespace.title
+
+            });
+
+            continue;
+
+        }
+
+
+
+        if(service === "Queue"){
+
+            const queue = await createQueue(
+                env,
+                `${request.company.toLowerCase().replace(/\s+/g,"-")}-queue`
+            );
+
+            results.push({
+
+                service,
+
+                status:"created",
+
+                id:queue.id,
+
+                name:queue.queue_name
 
             });
 
