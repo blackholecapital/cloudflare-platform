@@ -3,7 +3,8 @@ import { createKV } from "../providers/kv.js";
 import { createQueue } from "../providers/queues.js";
 import { createR2 } from "../providers/r2.js";
 import { createPagesProject } from "../providers/pages.js";
-import { createWorker } from "../providers/workers.js";
+import { deployWorker } from "../providers/workers.js";
+import { buildD1Binding } from "../providers/bindings.js";
 import { saveState, getState } from "../state/store.js";
 
 
@@ -60,38 +61,59 @@ export async function provisionCustomer(
         console.log("SERVICE RECEIVED:", service);
 
 
-        if(service === "Worker"){
+        
+if(service === "Worker"){
 
-            const worker =
-                await createWorker(
-                    env,
-                    `${customer}-api`
-                );
+    const bindings = [];
 
 
-            resources.worker = worker.id;
+    if(resources.d1){
+
+        bindings.push({
+
+            type:"d1",
+
+            name:"DB",
+
+            database_id:resources.d1
+
+        });
+
+    }
 
 
-            results.push({
-
-                service,
-
-                status:"created",
-
-                id:worker.id,
-
-                name:worker.name
-
-            });
+    const worker =
+        await deployWorker(
+            env,
+            `${customer}-api`,
+            bindings
+        );
 
 
-            continue;
-
-        }
+    resources.worker = worker.id;
 
 
+    results.push({
 
-        if(service === "Cloudflare Pages"){
+        service,
+
+        status:"created",
+
+        id:worker.id,
+
+        name:worker.name,
+
+        metadata:worker.metadata
+
+    });
+
+
+    continue;
+
+}
+
+
+if(service === "Cloudflare Pages"){
 
             const pages =
                 await createPagesProject(

@@ -1,16 +1,7 @@
-export async function findWorker(
+export async function deployWorker(
     env,
-    name
-){
-
-    return null;
-
-}
-
-
-export async function createWorker(
-    env,
-    name
+    name,
+    bindings = []
 ){
 
     const script = `
@@ -18,7 +9,7 @@ addEventListener("fetch", event => {
 
     event.respondWith(
         new Response(
-            "Cloudflare Platform Worker: ${name}",
+            "Worker ${name} online",
             {
                 headers:{
                     "content-type":"text/plain"
@@ -31,7 +22,10 @@ addEventListener("fetch", event => {
 `;
 
 
-    console.log("WORKER SCRIPT BODY", script);
+    console.log(
+        "WORKER UPLOAD MODE",
+        "classic-javascript"
+    );
 
     const response =
         await fetch(
@@ -71,7 +65,9 @@ addEventListener("fetch", event => {
 
         name,
 
-        existing:false
+        metadata:{
+            bindings
+        }
 
     };
 
