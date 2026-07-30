@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { provisionCustomer } from "./services/provisioner.js";
 import { getCustomerState } from "./routes/state.js";
+import { createPlan } from "./services/planner.js";
+import { executePlan } from "./services/executor.js";
 
 
 const app = new Hono();
@@ -108,34 +110,24 @@ app.get("/api/health", c => {
 
 app.post("/api/preview", async c => {
 
-  const request = await c.req.json();
+    const request =
+        await c.req.json();
 
-  return c.json({
 
-    status: "preview",
+    const plan =
+        await createPlan(
+            c.env,
+            request
+        );
 
-    request,
 
-    actions: [
-      {
-        type: "pages",
-        action: "create"
-      },
-      {
-        type: "worker",
-        action: "create"
-      },
-      {
-        type: "d1",
-        action: "create"
-      },
-      {
-        type: "kv",
-        action: "create"
-      }
-    ]
+    return c.json({
 
-  });
+        status:"preview",
+
+        plan
+
+    });
 
 });
 
@@ -144,15 +136,18 @@ app.post("/api/provision", async c => {
 
   const request = await c.req.json();
 
-  const result = await provisionCustomer(request, c.env);
+  const plan = await createPlan(
+    c.env,
+    request
+  );
 
-  return c.json({
+  const result = await executePlan(
+    c.env,
+    request,
+    plan
+  );
 
-    status:"accepted",
-
-    result
-
-  });
+  return c.json(result);
 
 });
 
