@@ -6,7 +6,7 @@ import {
   listPagesProjects
 } from "../cloudflare/resources";
 
-import { Inventory } from "../types/inventory";
+import type { Inventory } from "../types/inventory";
 
 export async function collectInventory(): Promise<Inventory> {
   const [
@@ -24,10 +24,10 @@ export async function collectInventory(): Promise<Inventory> {
   ]);
 
   return {
-    workers: workers.result.map((x:any)=>x.id).sort(),
-    d1: d1.result.map((x:any)=>x.name).sort(),
-    kv: kv.result.map((x:any)=>x.title).sort(),
-    queues: queues.result.map((x:any)=>x.queue_name).sort(),
-    pages: pages.result.map((x:any)=>x.name).sort()
+    workers: workers.result.map((x: any) => x.id).sort(),
+    d1: d1.result.map((x: any) => x.name).sort(),
+    kv: kv.result.map((x: any) => x.title).sort(),
+    queues: queues.result.map((x: any) => x.queue_name).sort(),
+    pages: pages.result.map((x: any) => x.name).sort()
   };
 }
