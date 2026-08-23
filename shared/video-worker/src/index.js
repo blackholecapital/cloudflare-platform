@@ -21,6 +21,12 @@ function tenantSecretSlot(tenantId) {
     .replace(/^_+|_+$/g, '');
 }
 
+function base64Url(bytes) {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
 async function digest(value) {
   return new Uint8Array(
     await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value || ''))),
@@ -36,9 +42,31 @@ async function secretsEqual(a, b) {
   return diff === 0;
 }
 
+async function hmac(secret, message) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(String(secret)),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(String(message)));
+  return base64Url(new Uint8Array(signature));
+}
+
+function capabilitySecret(env) {
+  const value = String(env.BLACKHOLE_CAPABILITY_TOKEN || '').trim();
+  if (!value) throw new Error('BLACKHOLE_CAPABILITY_TOKEN is not configured');
+  return value;
+}
+
 async function authorize(request, env) {
-  const configured = String(env.BLACKHOLE_CAPABILITY_TOKEN || '');
-  if (!configured) return json({ ok: false, error: 'BLACKHOLE_CAPABILITY_TOKEN is not configured' }, 503);
+  let configured;
+  try {
+    configured = capabilitySecret(env);
+  } catch (error) {
+    return json({ ok: false, error: error.message }, 503);
+  }
 
   const provided = String(
     request.headers.get('x-blackhole-capability-token')
@@ -50,6 +78,58 @@ async function authorize(request, env) {
   if (!provided || !(await secretsEqual(provided, configured))) {
     return json({ ok: false, error: 'Unauthorized' }, 401);
   }
+  return null;
+}
+
+async function createRelayToken(env, tenantId) {
+  const secret = capabilitySecret(env);
+  const exp = Math.floor(Date.now() / 1000) + 900;
+  const message = `bh-relay:${tenantId}:${exp}`;
+  const signature = await hmac(secret, message);
+  return `bh1.${tenantId}.${exp}.${signature}`;
+}
+
+async function authorizeRelay(request, env, url) {
+  const tenantId = cleanId(url.searchParams.get('tenant'), 64);
+  if (!tenantId) return json({ ok: false, error: 'tenant query parameter is required' }, 400);
+
+  let configured;
+  try {
+    configured = capabilitySecret(env);
+  } catch (error) {
+    return json({ ok: false, error: error.message }, 503);
+  }
+
+  const provided = String(
+    request.headers.get('x-api-key')
+      || request.headers.get('x-blackhole-capability-token')
+      || request.headers.get('x-runtime-token')
+      || '',
+  ).trim();
+
+  if (!provided) return json({ ok: false, error: 'Unauthorized' }, 401);
+
+  if (await secretsEqual(provided, configured)) return null;
+
+  const [version, tokenTenant, expRaw, signature] = provided.split('.');
+  const exp = Number(expRaw);
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    version !== 'bh1'
+    || tokenTenant !== tenantId
+    || !Number.isInteger(exp)
+    || exp < now
+    || exp > now + 1800
+    || !signature
+  ) {
+    return json({ ok: false, error: 'Unauthorized' }, 401);
+  }
+
+  const expected = await hmac(configured, `bh-relay:${tenantId}:${exp}`);
+  if (!(await secretsEqual(signature, expected))) {
+    return json({ ok: false, error: 'Unauthorized' }, 401);
+  }
+
   return null;
 }
 
@@ -140,7 +220,7 @@ function cleanMetadata(metadata = {}) {
     'tenant_id', 'product', 'creator_id', 'creator_name', 'creator_slug', 'fan_id',
     'avatar_provider', 'avatar_source', 'lemonslice_agent_id', 'avatar_image_url',
     'avatar_prompt', 'avatar_idle_prompt', 'voice_provider', 'voice_model', 'voice_id',
-    'instructions',
+    'instructions', 'relay_token',
   ];
   const out = {};
   for (const key of allowed) {
@@ -190,6 +270,7 @@ async function createBrowserSession(request, env) {
   const body = await request.json().catch(() => ({}));
   const input = normalizeSession(body);
   const room = `bh-${input.tenantId}-${input.creatorId}-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}`;
+  const relayToken = await createRelayToken(env, input.tenantId);
 
   const metadata = {
     tenant_id: input.tenantId,
@@ -208,6 +289,7 @@ async function createBrowserSession(request, env) {
     voice_model: input.voiceModel,
     voice_id: input.voiceId,
     instructions: input.instructions,
+    relay_token: relayToken,
   };
 
   const dispatchId = await dispatchAgent(env, room, metadata);
@@ -284,6 +366,7 @@ export default {
         livekitConfigured: Boolean(env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET),
         agentName: String(env.VIDEO_AGENT_NAME || ''),
         authMode: 'official-livekit-server-sdk',
+        relayAuthMode: 'dispatch-scoped-hmac',
       });
     }
 
@@ -298,7 +381,7 @@ export default {
     }
 
     if (request.method === 'POST' && url.pathname === '/internal/lemonslice/sessions') {
-      const denied = await authorize(request, env);
+      const denied = await authorizeRelay(request, env, url);
       if (denied) return denied;
       return relayLemonSlice(request, env, url);
     }
