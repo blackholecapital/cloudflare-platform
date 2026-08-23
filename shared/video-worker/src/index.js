@@ -87,6 +87,8 @@ function normalizeSession(body = {}) {
   const instructions = required(body.instructions, 'instructions');
   const agentId = String(body.lemonsliceAgentId || body.lemonslice_agent_id || '').trim().slice(0, 240);
   const imageUrl = String(body.avatarImageUrl || body.avatar_image_url || '').trim().slice(0, 2000);
+  const avatarPrompt = String(body.avatarPrompt || body.avatar_prompt || '').trim().slice(0, 500);
+  const avatarIdlePrompt = String(body.avatarIdlePrompt || body.avatar_idle_prompt || '').trim().slice(0, 500);
 
   if (!tenantId) throw new Error('tenantId is required');
   if (!creatorId) throw new Error('creatorId is required');
@@ -107,6 +109,8 @@ function normalizeSession(body = {}) {
     avatarSource,
     agentId,
     imageUrl,
+    avatarPrompt,
+    avatarIdlePrompt,
     voiceProvider,
     voiceModel,
     voiceId,
@@ -135,6 +139,8 @@ async function createSession(request, env) {
     avatar_source: input.avatarSource,
     lemonslice_agent_id: input.avatarSource === 'agent-id' ? input.agentId : '',
     avatar_image_url: input.avatarSource === 'image-url' ? input.imageUrl : '',
+    avatar_prompt: input.avatarPrompt,
+    avatar_idle_prompt: input.avatarIdlePrompt,
     voice_provider: input.voiceProvider,
     voice_model: input.voiceModel,
     voice_id: input.voiceId,
