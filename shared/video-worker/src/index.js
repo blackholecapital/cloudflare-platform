@@ -1,4 +1,4 @@
-const LIVEKIT_DISPATCH_PATH = '/twirp/livekit.AgentDispatchService/CreateDispatch';
+import { AccessToken, AgentDispatchClient } from 'livekit-server-sdk';
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -19,28 +19,6 @@ function tenantSecretSlot(tenantId) {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
-}
-
-function base64Url(value) {
-  const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-async function signJwt(payload, secret) {
-  const header = base64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = base64Url(JSON.stringify(payload));
-  const unsigned = `${header}.${body}`;
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(String(secret)),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(unsigned));
-  return `${unsigned}.${base64Url(new Uint8Array(signature))}`;
 }
 
 async function digest(value) {
@@ -83,32 +61,29 @@ function liveKitHttpUrl(value) {
   return url.origin;
 }
 
-async function liveKitAdminToken(env, room) {
-  const now = Math.floor(Date.now() / 1000);
-  return signJwt({
-    iss: String(env.LIVEKIT_API_KEY),
-    nbf: now - 5,
-    exp: now + 300,
-    video: { roomAdmin: true, room: String(room) },
-  }, env.LIVEKIT_API_SECRET);
+function liveKitCredentials(env) {
+  const apiKey = String(env.LIVEKIT_API_KEY || '').trim();
+  const apiSecret = String(env.LIVEKIT_API_SECRET || '').trim();
+  const host = liveKitHttpUrl(env.LIVEKIT_URL);
+  if (!apiKey || !apiSecret) throw new Error('LiveKit API key/secret are not configured');
+  return { apiKey, apiSecret, host };
 }
 
 async function liveKitParticipantToken(env, room, identity, name) {
-  const now = Math.floor(Date.now() / 1000);
-  return signJwt({
-    iss: String(env.LIVEKIT_API_KEY),
-    sub: String(identity),
-    name: String(name || identity),
-    nbf: now - 5,
-    exp: now + 3600,
-    video: {
-      roomJoin: true,
-      room: String(room),
-      canPublish: true,
-      canSubscribe: true,
-      canPublishData: true,
-    },
-  }, env.LIVEKIT_API_SECRET);
+  const { apiKey, apiSecret } = liveKitCredentials(env);
+  const token = new AccessToken(apiKey, apiSecret, {
+    identity: String(identity),
+    ttl: 3600,
+  });
+  token.name = String(name || identity);
+  token.addGrant({
+    roomJoin: true,
+    room: String(room),
+    canPublish: true,
+    canSubscribe: true,
+    canPublishData: true,
+  });
+  return token.toJwt();
 }
 
 function requiredString(body, camel, snake = camel, max = 5000) {
@@ -195,33 +170,20 @@ async function emit(env, event) {
 }
 
 async function dispatchAgent(env, room, metadata) {
-  if (!env.LIVEKIT_URL || !env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET) {
-    throw new Error('LiveKit is not configured');
-  }
+  const { apiKey, apiSecret, host } = liveKitCredentials(env);
   const agentName = String(env.VIDEO_AGENT_NAME || '').trim();
   if (!agentName) throw new Error('VIDEO_AGENT_NAME is not configured');
 
-  const token = await liveKitAdminToken(env, room);
-  const response = await fetch(`${liveKitHttpUrl(env.LIVEKIT_URL)}${LIVEKIT_DISPATCH_PATH}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      room,
-      agent_name: agentName,
+  const client = new AgentDispatchClient(host, apiKey, apiSecret);
+  try {
+    const dispatch = await client.createDispatch(String(room), agentName, {
       metadata: JSON.stringify(cleanMetadata(metadata)),
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = (await response.text()).replace(/\s+/g, ' ').trim().slice(0, 500);
-    throw new Error(`LiveKit dispatch failed (${response.status})${detail ? `: ${detail}` : ''}`);
+    });
+    return dispatch?.id || null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`LiveKit dispatch failed: ${message}`);
   }
-
-  const data = await response.json();
-  return data.id || data.dispatch_id || null;
 }
 
 async function createBrowserSession(request, env) {
@@ -287,7 +249,7 @@ async function relayLemonSlice(request, env, url) {
     return json({ ok: false, error: `LemonSlice provider key is not configured for tenant ${tenantId}` }, 503);
   }
 
-  const body = new Uint8Array(await request.arrayBuffer());
+  const requestBody = new Uint8Array(await request.arrayBuffer());
   const response = await fetch(String(env.LEMONSLICE_API_URL || 'https://lemonslice.com/api/liveai/sessions'), {
     method: 'POST',
     headers: {
@@ -295,14 +257,14 @@ async function relayLemonSlice(request, env, url) {
       'content-type': request.headers.get('content-type') || 'application/json',
       accept: request.headers.get('accept') || 'application/json',
     },
-    body,
+    body: requestBody,
   });
 
   await emit(env, {
     type: 'video.lemonslice.relay',
     tenantId,
     providerStatus: response.status,
-    bytes: body.byteLength,
+    bytes: requestBody.byteLength,
   });
 
   const headers = new Headers(response.headers);
@@ -321,6 +283,7 @@ export default {
         tenantMode: 'explicit-fail-closed',
         livekitConfigured: Boolean(env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET),
         agentName: String(env.VIDEO_AGENT_NAME || ''),
+        authMode: 'official-livekit-server-sdk',
       });
     }
 
