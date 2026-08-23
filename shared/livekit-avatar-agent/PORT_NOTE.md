@@ -1,0 +1,1 @@
+The shared Black Hole avatar agent uses HTTP health port 8082 by default so it can run alongside an existing LiveKit agent using the framework default port 8081. Override with AGENT_HTTP_PORT when needed.
