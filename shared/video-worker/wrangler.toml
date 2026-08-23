@@ -1,0 +1,29 @@
+name = "blackhole-video-worker"
+main = "src/index.js"
+compatibility_date = "2026-08-23"
+workers_dev = true
+
+[vars]
+LIVEKIT_URL = "wss://eila-7257eve9.livekit.cloud"
+VIDEO_AGENT_NAME = "blackhole-avatar"
+LEMONSLICE_API_URL = "https://lemonslice.com/api/liveai/sessions"
+
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "blackhole_video_events"
+
+[[queues.producers]]
+binding = "EVENTS"
+queue = "blackhole-communication-events"
+
+# Required production secrets. Never commit their values:
+#   LIVEKIT_API_KEY
+#   LIVEKIT_API_SECRET
+#   BLACKHOLE_CAPABILITY_TOKEN
+#   LEMONSLICE_<TENANT>_API_KEY
+# Example tenant slot for AI Fans:
+#   LEMONSLICE_AI_FANS_API_KEY
+
+[observability]
+enabled = true
+head_sampling_rate = 1
