@@ -25,6 +25,7 @@ load_dotenv(_APP_ROOT / ".env")
 
 logger = logging.getLogger("blackhole.avatar")
 AGENT_NAME = os.getenv("AGENT_NAME", "blackhole-avatar").strip() or "blackhole-avatar"
+AGENT_HTTP_PORT = int(os.getenv("AGENT_HTTP_PORT", "8082"))
 BLACKHOLE_VIDEO_RELAY_URL = os.getenv(
     "BLACKHOLE_VIDEO_RELAY_URL",
     "https://blackhole-video-worker.cryptocapitalgroupfl.workers.dev/internal/lemonslice/sessions",
@@ -101,7 +102,7 @@ def avatar_source(metadata: dict) -> dict:
     raise RuntimeError(f"Unsupported avatar_source: {source}")
 
 
-server = AgentServer()
+server = AgentServer(port=AGENT_HTTP_PORT)
 
 
 @server.rtc_session(agent_name=AGENT_NAME)
