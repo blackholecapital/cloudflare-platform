@@ -1,8 +1,8 @@
 """Shared Black Hole LiveKit avatar runtime.
 
-All tenant identity, avatar source, voice, and persona configuration must arrive in
-LiveKit dispatch metadata. There are intentionally no EILA, ACE, Buddy, or demo
-identity fallbacks in this runtime.
+All tenant identity, avatar source, voice, persona configuration, and short-lived
+relay authorization arrive in LiveKit dispatch metadata. There are intentionally
+no EILA, ACE, Buddy, demo identity, or long-lived relay-secret fallbacks here.
 """
 
 from __future__ import annotations
@@ -111,6 +111,7 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
     tenant_id = required(metadata, "tenant_id")
     instructions = required(metadata, "instructions")
     creator_name = required(metadata, "creator_name")
+    relay_token = required(metadata, "relay_token")
 
     session = AgentSession(
         llm=inference.LLM(model=os.getenv("LIVEKIT_LLM_MODEL", "openai/gpt-4o-mini")),
@@ -136,11 +137,8 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
 
     await ctx.connect()
 
-    relay_token = os.getenv("BLACKHOLE_CAPABILITY_TOKEN", "").strip()
     if not BLACKHOLE_VIDEO_RELAY_URL:
         raise RuntimeError("BLACKHOLE_VIDEO_RELAY_URL is required")
-    if not relay_token:
-        raise RuntimeError("BLACKHOLE_CAPABILITY_TOKEN is required")
 
     separator = "&" if "?" in BLACKHOLE_VIDEO_RELAY_URL else "?"
     relay_url = f"{BLACKHOLE_VIDEO_RELAY_URL}{separator}tenant={quote(tenant_id)}"
@@ -153,7 +151,7 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
         "api_key": relay_token,
     }
 
-    logger.info("LEMONSLICE_RELAY tenant_id=%s url=%s", tenant_id, relay_url)
+    logger.info("LEMONSLICE_RELAY tenant_id=%s url=%s auth=dispatch-scoped", tenant_id, relay_url)
 
     avatar = lemonslice.AvatarSession(**avatar_options)
     await avatar.start(session, room=ctx.room)
