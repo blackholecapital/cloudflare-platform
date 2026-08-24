@@ -13,6 +13,8 @@ from livekit import agents
 from livekit.agents import Agent, AgentServer, AgentSession, TurnHandlingOptions, inference, room_io
 from livekit.plugins import lemonslice, noise_cancellation
 
+from livekit_tts import EilaRuntimeTTS
+
 APP_ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(APP_ROOT / ".env.local")
 load_dotenv(APP_ROOT / ".env")
@@ -72,12 +74,27 @@ def avatar_options(metadata: dict) -> dict:
 def build_tts(metadata: dict):
     tenant_id = required(metadata, "tenant_id")
     provider = required(metadata, "voice_provider").lower()
-    if provider != "livekit-inference":
-        raise RuntimeError(f"Unsupported voice_provider: {provider}")
-    model = required(metadata, "voice_model")
     voice = required(metadata, "voice_id")
-    logger.info("TTS_SOURCE tenant_id=%s model=%s voice=%s", tenant_id, model, voice)
-    return inference.TTS(model=model, voice=voice, language="en")
+
+    if provider == "livekit-inference":
+        model = required(metadata, "voice_model")
+        logger.info(
+            "TTS_SOURCE tenant_id=%s provider=livekit-inference model=%s voice=%s",
+            tenant_id,
+            model,
+            voice,
+        )
+        return inference.TTS(model=model, voice=voice, language="en")
+
+    if provider == "eila-runtime":
+        logger.info(
+            "TTS_SOURCE tenant_id=%s provider=eila-runtime voice=%s",
+            tenant_id,
+            voice,
+        )
+        return EilaRuntimeTTS(voice_id=voice)
+
+    raise RuntimeError(f"Unsupported voice_provider: {provider}")
 
 
 server = AgentServer(port=AGENT_HTTP_PORT)
