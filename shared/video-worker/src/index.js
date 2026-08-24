@@ -1,199 +1,139 @@
 import { AccessToken, AgentDispatchClient } from 'livekit-server-sdk';
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-    },
-  });
+const RELAY_TTL_SECONDS = 600;
+
+const json = (data, status = 200) => new Response(JSON.stringify(data), {
+  status,
+  headers: {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store',
+  },
+});
+
+const cleanId = (value, max = 96) => String(value || '')
+  .replace(/[^a-zA-Z0-9_-]/g, '')
+  .slice(0, max);
+
+const required = (value, name, max = 5000) => {
+  const out = String(value || '').trim().slice(0, max);
+  if (!out) throw new Error(`${name} is required`);
+  return out;
+};
+
+const tenantSecretSlot = (tenantId) => tenantId
+  .toUpperCase()
+  .replace(/[^A-Z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+function capabilitySecret(env) {
+  return required(env.BLACKHOLE_CAPABILITY_TOKEN, 'BLACKHOLE_CAPABILITY_TOKEN', 500);
 }
 
-function cleanId(value, max = 96) {
-  return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, max);
+function liveKitConfig(env) {
+  const apiKey = required(env.LIVEKIT_API_KEY, 'LIVEKIT_API_KEY', 500);
+  const apiSecret = required(env.LIVEKIT_API_SECRET, 'LIVEKIT_API_SECRET', 1000);
+  const agentName = required(env.VIDEO_AGENT_NAME, 'VIDEO_AGENT_NAME', 160);
+  const wsUrl = required(env.LIVEKIT_URL, 'LIVEKIT_URL', 1000);
+  const httpUrl = new URL(wsUrl);
+  if (httpUrl.protocol === 'wss:') httpUrl.protocol = 'https:';
+  else if (httpUrl.protocol === 'ws:') httpUrl.protocol = 'http:';
+  if (!['https:', 'http:'].includes(httpUrl.protocol)) throw new Error('LIVEKIT_URL must use ws(s) or http(s)');
+  return { apiKey, apiSecret, agentName, wsUrl, httpUrl: httpUrl.origin };
 }
 
-function tenantSecretSlot(tenantId) {
-  return String(tenantId || '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
-async function digest(value) {
-  return new Uint8Array(
-    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value || ''))),
+async function hmac(secret, message) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
   );
+  const bytes = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message)));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-async function secretsEqual(a, b) {
-  const left = await digest(a);
-  const right = await digest(b);
-  let diff = left.length ^ right.length;
-  const length = Math.max(left.length, right.length);
-  for (let i = 0; i < length; i += 1) diff |= (left[i] ?? 0) ^ (right[i] ?? 0);
-  return diff === 0;
+async function relayToken(env, tenantId, room) {
+  const exp = Math.floor(Date.now() / 1000) + RELAY_TTL_SECONDS;
+  const sig = await hmac(capabilitySecret(env), `${tenantId}|${room}|${exp}`);
+  return `bh1.${exp}.${sig}`;
 }
 
-async function authorize(request, env) {
-  const configured = String(env.BLACKHOLE_CAPABILITY_TOKEN || '');
-  if (!configured) return json({ ok: false, error: 'BLACKHOLE_CAPABILITY_TOKEN is not configured' }, 503);
+async function authorizeRelay(request, env, tenantId, room) {
+  const token = String(request.headers.get('x-api-key') || '').trim();
+  const [version, expRaw, signature] = token.split('.');
+  const exp = Number(expRaw);
+  const now = Math.floor(Date.now() / 1000);
 
-  const provided = String(
-    request.headers.get('x-blackhole-capability-token')
-      || request.headers.get('x-runtime-token')
-      || request.headers.get('x-api-key')
-      || '',
-  );
-
-  if (!provided || !(await secretsEqual(provided, configured))) {
-    return json({ ok: false, error: 'Unauthorized' }, 401);
+  if (version !== 'bh1' || !Number.isInteger(exp) || exp < now || exp > now + RELAY_TTL_SECONDS + 60 || !signature) {
+    return false;
   }
-  return null;
-}
 
-function liveKitHttpUrl(value) {
-  const url = new URL(String(value || ''));
-  if (url.protocol === 'wss:') url.protocol = 'https:';
-  if (url.protocol === 'ws:') url.protocol = 'http:';
-  if (!['https:', 'http:'].includes(url.protocol)) throw new Error('LIVEKIT_URL must be ws(s) or http(s)');
-  return url.origin;
-}
-
-function liveKitCredentials(env) {
-  const apiKey = String(env.LIVEKIT_API_KEY || '').trim();
-  const apiSecret = String(env.LIVEKIT_API_SECRET || '').trim();
-  const host = liveKitHttpUrl(env.LIVEKIT_URL);
-  if (!apiKey || !apiSecret) throw new Error('LiveKit API key/secret are not configured');
-  return { apiKey, apiSecret, host };
-}
-
-async function liveKitParticipantToken(env, room, identity, name) {
-  const { apiKey, apiSecret } = liveKitCredentials(env);
-  const token = new AccessToken(apiKey, apiSecret, {
-    identity: String(identity),
-    ttl: 3600,
-  });
-  token.name = String(name || identity);
-  token.addGrant({
-    roomJoin: true,
-    room: String(room),
-    canPublish: true,
-    canSubscribe: true,
-    canPublishData: true,
-  });
-  return token.toJwt();
-}
-
-function requiredString(body, camel, snake = camel, max = 5000) {
-  const value = String(body?.[camel] ?? body?.[snake] ?? '').trim().slice(0, max);
-  if (!value) throw new Error(`${camel} is required`);
-  return value;
+  const expected = await hmac(capabilitySecret(env), `${tenantId}|${room}|${exp}`);
+  return signature === expected;
 }
 
 function normalizeSession(body = {}) {
   const tenantId = cleanId(body.tenantId || body.tenant_id, 64);
-  const creatorId = cleanId(body.creatorId || body.creator_id || body.subjectId || body.subject_id, 64);
+  const creatorId = cleanId(body.creatorId || body.creator_id, 64);
   const fanId = cleanId(body.fanId || body.fan_id || crypto.randomUUID(), 96) || crypto.randomUUID();
-  const avatarProvider = requiredString(body, 'avatarProvider', 'avatar_provider', 64).toLowerCase();
-  const avatarSource = requiredString(body, 'avatarSource', 'avatar_source', 64).toLowerCase();
-  const voiceProvider = requiredString(body, 'voiceProvider', 'voice_provider', 64).toLowerCase();
+  const avatarProvider = required(body.avatarProvider || body.avatar_provider, 'avatarProvider', 64).toLowerCase();
+  const avatarSource = required(body.avatarSource || body.avatar_source, 'avatarSource', 64).toLowerCase();
+  const voiceProvider = required(body.voiceProvider || body.voice_provider, 'voiceProvider', 64).toLowerCase();
   const voiceModel = String(body.voiceModel || body.voice_model || '').trim().slice(0, 160);
-  const voiceId = requiredString(body, 'voiceId', 'voice_id', 160);
-  const instructions = requiredString(body, 'instructions', 'instructions', 5000);
-  const agentId = String(body.lemonsliceAgentId || body.lemonslice_agent_id || body.agentId || '').trim().slice(0, 240);
+  const voiceId = required(body.voiceId || body.voice_id, 'voiceId', 160);
+  const instructions = required(body.instructions, 'instructions');
+  const agentId = String(body.lemonsliceAgentId || body.lemonslice_agent_id || '').trim().slice(0, 240);
   const imageUrl = String(body.avatarImageUrl || body.avatar_image_url || '').trim().slice(0, 2000);
+  const avatarPrompt = String(body.avatarPrompt || body.avatar_prompt || '').trim().slice(0, 500);
+  const avatarIdlePrompt = String(body.avatarIdlePrompt || body.avatar_idle_prompt || '').trim().slice(0, 500);
 
   if (!tenantId) throw new Error('tenantId is required');
   if (!creatorId) throw new Error('creatorId is required');
   if (avatarProvider !== 'lemonslice') throw new Error('avatarProvider must be lemonslice');
   if (!['agent-id', 'image-url'].includes(avatarSource)) throw new Error('avatarSource must be agent-id or image-url');
-  if (avatarSource === 'agent-id' && !agentId) throw new Error('lemonsliceAgentId is required for agent-id source');
-  if (avatarSource === 'image-url' && !imageUrl) throw new Error('avatarImageUrl is required for image-url source');
-  if (voiceProvider !== 'livekit-inference') throw new Error('voiceProvider must be livekit-inference');
-  if (!voiceModel) throw new Error('voiceModel is required');
+  if (avatarSource === 'agent-id' && !agentId) throw new Error('lemonsliceAgentId is required');
+  if (avatarSource === 'image-url' && !imageUrl) throw new Error('avatarImageUrl is required');
+  if (!['livekit-inference', 'eila-runtime'].includes(voiceProvider)) {
+    throw new Error('voiceProvider must be livekit-inference or eila-runtime');
+  }
+  if (voiceProvider === 'livekit-inference' && !voiceModel) throw new Error('voiceModel is required for livekit-inference');
 
   return {
     tenantId,
     creatorId,
     fanId,
+    creatorName: String(body.creatorName || body.creator_name || creatorId).trim().slice(0, 120),
+    creatorSlug: String(body.creatorSlug || body.creator_slug || creatorId).trim().slice(0, 120),
+    fanName: String(body.fanName || body.fan_name || 'Member').trim().slice(0, 120),
     avatarProvider,
     avatarSource,
+    agentId,
+    imageUrl,
+    avatarPrompt,
+    avatarIdlePrompt,
     voiceProvider,
     voiceModel,
     voiceId,
     instructions,
-    agentId,
-    imageUrl,
-    product: String(body.product || tenantId).trim().slice(0, 120),
-    creatorName: String(body.creatorName || body.creator_name || creatorId).trim().slice(0, 120),
-    creatorSlug: String(body.creatorSlug || body.creator_slug || creatorId).trim().slice(0, 120),
-    fanName: String(body.fanName || body.fan_name || 'Member').trim().slice(0, 120),
-    avatarPrompt: String(body.avatarPrompt || body.avatar_prompt || 'a person talking').trim().slice(0, 500),
-    avatarIdlePrompt: String(body.avatarIdlePrompt || body.avatar_idle_prompt || 'a person listening').trim().slice(0, 500),
   };
 }
 
-function cleanMetadata(metadata = {}) {
-  const allowed = [
-    'tenant_id', 'product', 'creator_id', 'creator_name', 'creator_slug', 'fan_id',
-    'avatar_provider', 'avatar_source', 'lemonslice_agent_id', 'avatar_image_url',
-    'avatar_prompt', 'avatar_idle_prompt', 'voice_provider', 'voice_model', 'voice_id',
-    'instructions',
-  ];
-  const out = {};
-  for (const key of allowed) {
-    const value = metadata[key];
-    if (value !== undefined && value !== null && value !== '') out[key] = value;
-  }
-  return out;
-}
+async function createSession(request, env) {
+  const supplied = String(request.headers.get('x-blackhole-capability-token') || '');
+  if (!supplied || supplied !== capabilitySecret(env)) return json({ ok: false, error: 'Unauthorized' }, 401);
 
-async function emit(env, event) {
-  const payload = { ...event, ts: Date.now() };
-  try {
-    if (env.EVENTS) await env.EVENTS.send(payload);
-  } catch (error) {
-    console.error('blackhole-video queue emit failed', error);
-  }
-  try {
-    if (env.ANALYTICS) {
-      env.ANALYTICS.writeDataPoint({
-        blobs: [String(event.type || 'video.event'), String(event.tenantId || ''), String(event.creatorId || ''), String(event.room || '')],
-        doubles: [Date.now()],
-      });
-    }
-  } catch (error) {
-    console.error('blackhole-video analytics emit failed', error);
-  }
-}
-
-async function dispatchAgent(env, room, metadata) {
-  const { apiKey, apiSecret, host } = liveKitCredentials(env);
-  const agentName = String(env.VIDEO_AGENT_NAME || '').trim();
-  if (!agentName) throw new Error('VIDEO_AGENT_NAME is not configured');
-
-  const client = new AgentDispatchClient(host, apiKey, apiSecret);
-  try {
-    const dispatch = await client.createDispatch(String(room), agentName, {
-      metadata: JSON.stringify(cleanMetadata(metadata)),
-    });
-    return dispatch?.id || null;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`LiveKit dispatch failed: ${message}`);
-  }
-}
-
-async function createBrowserSession(request, env) {
-  const body = await request.json().catch(() => ({}));
-  const input = normalizeSession(body);
+  const input = normalizeSession(await request.json().catch(() => ({})));
+  const livekit = liveKitConfig(env);
   const room = `bh-${input.tenantId}-${input.creatorId}-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}`;
+  const relay = await relayToken(env, input.tenantId, room);
+
+  console.log('SESSION_REQUEST', { tenantId: input.tenantId, creatorId: input.creatorId, room });
 
   const metadata = {
     tenant_id: input.tenantId,
-    product: input.product,
     creator_id: input.creatorId,
     creator_name: input.creatorName,
     creator_slug: input.creatorSlug,
@@ -208,29 +148,33 @@ async function createBrowserSession(request, env) {
     voice_model: input.voiceModel,
     voice_id: input.voiceId,
     instructions: input.instructions,
+    relay_room: room,
+    relay_token: relay,
   };
 
-  const dispatchId = await dispatchAgent(env, room, metadata);
-  const identity = `member-${input.tenantId}-${input.fanId}`.slice(0, 120);
-  const token = await liveKitParticipantToken(env, room, identity, input.fanName);
-
-  await emit(env, {
-    type: 'video.session.created',
-    tenantId: input.tenantId,
-    creatorId: input.creatorId,
-    room,
-    dispatchId,
-    avatarSource: input.avatarSource,
-    voiceProvider: input.voiceProvider,
+  const dispatchClient = new AgentDispatchClient(livekit.httpUrl, livekit.apiKey, livekit.apiSecret);
+  const dispatch = await dispatchClient.createDispatch(room, livekit.agentName, {
+    metadata: JSON.stringify(metadata),
   });
+  console.log('DISPATCH_OK', { tenantId: input.tenantId, creatorId: input.creatorId, room, dispatchId: dispatch?.id || null });
+
+  const participant = new AccessToken(livekit.apiKey, livekit.apiSecret, {
+    identity: `member-${input.tenantId}-${input.fanId}`.slice(0, 120),
+    ttl: 3600,
+    name: input.fanName,
+  });
+  participant.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true, canPublishData: true });
+
+  const token = await participant.toJwt();
+  console.log('SESSION_OK', { tenantId: input.tenantId, creatorId: input.creatorId, room });
 
   return json({
     ok: true,
     mode: 'browser',
-    livekitUrl: String(env.LIVEKIT_URL),
+    livekitUrl: livekit.wsUrl,
     token,
     room,
-    dispatchId,
+    dispatchId: dispatch?.id || null,
     tenantId: input.tenantId,
     creatorId: input.creatorId,
     fanId: input.fanId,
@@ -239,37 +183,33 @@ async function createBrowserSession(request, env) {
 
 async function relayLemonSlice(request, env, url) {
   const tenantId = cleanId(url.searchParams.get('tenant'), 64);
-  if (!tenantId) return json({ ok: false, error: 'tenant query parameter is required' }, 400);
+  const room = cleanId(url.searchParams.get('room'), 160);
+  if (!tenantId || !room) return json({ ok: false, error: 'tenant and room are required' }, 400);
 
-  const slot = tenantSecretSlot(tenantId);
-  if (!slot) return json({ ok: false, error: 'invalid tenant' }, 400);
-
-  const providerKey = String(env[`LEMONSLICE_${slot}_API_KEY`] || '');
-  if (!providerKey) {
-    return json({ ok: false, error: `LemonSlice provider key is not configured for tenant ${tenantId}` }, 503);
+  if (!(await authorizeRelay(request, env, tenantId, room))) {
+    console.warn('RELAY_AUTH_FAIL', { tenantId, room });
+    return json({ ok: false, error: 'Unauthorized' }, 401);
   }
+  console.log('RELAY_AUTH_OK', { tenantId, room });
 
-  const requestBody = new Uint8Array(await request.arrayBuffer());
-  const response = await fetch(String(env.LEMONSLICE_API_URL || 'https://lemonslice.com/api/liveai/sessions'), {
+  const providerKey = String(env[`LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`] || '').trim();
+  if (!providerKey) return json({ ok: false, error: `LemonSlice key missing for ${tenantId}` }, 503);
+
+  const body = new Uint8Array(await request.arrayBuffer());
+  const upstream = await fetch(String(env.LEMONSLICE_API_URL || 'https://lemonslice.com/api/liveai/sessions'), {
     method: 'POST',
     headers: {
       'x-api-key': providerKey,
       'content-type': request.headers.get('content-type') || 'application/json',
-      accept: request.headers.get('accept') || 'application/json',
+      accept: 'application/json',
     },
-    body: requestBody,
+    body,
   });
 
-  await emit(env, {
-    type: 'video.lemonslice.relay',
-    tenantId,
-    providerStatus: response.status,
-    bytes: requestBody.byteLength,
-  });
-
-  const headers = new Headers(response.headers);
+  console.log('LEMONSLICE_STATUS', { tenantId, room, status: upstream.status });
+  const headers = new Headers(upstream.headers);
   headers.set('cache-control', 'no-store');
-  return new Response(response.body, { status: response.status, headers });
+  return new Response(upstream.body, { status: upstream.status, headers });
 }
 
 export default {
@@ -280,29 +220,24 @@ export default {
       return json({
         ok: true,
         service: 'blackhole-video-worker',
-        tenantMode: 'explicit-fail-closed',
+        version: 'lean-v1',
         livekitConfigured: Boolean(env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET),
         agentName: String(env.VIDEO_AGENT_NAME || ''),
-        authMode: 'official-livekit-server-sdk',
+        relayAuth: 'room-scoped-hmac',
       });
     }
 
-    if (request.method === 'POST' && url.pathname === '/internal/video/session') {
-      const denied = await authorize(request, env);
-      if (denied) return denied;
-      try {
-        return await createBrowserSession(request, env);
-      } catch (error) {
-        return json({ ok: false, error: error instanceof Error ? error.message : 'video session failed' }, 400);
+    try {
+      if (request.method === 'POST' && url.pathname === '/internal/video/session') {
+        return await createSession(request, env);
       }
+      if (request.method === 'POST' && url.pathname === '/internal/lemonslice/sessions') {
+        return await relayLemonSlice(request, env, url);
+      }
+      return json({ ok: false, error: 'route not found' }, 404);
+    } catch (error) {
+      console.error('VIDEO_WORKER_ERROR', error instanceof Error ? error.message : String(error));
+      return json({ ok: false, error: error instanceof Error ? error.message : 'video worker failure' }, 500);
     }
-
-    if (request.method === 'POST' && url.pathname === '/internal/lemonslice/sessions') {
-      const denied = await authorize(request, env);
-      if (denied) return denied;
-      return relayLemonSlice(request, env, url);
-    }
-
-    return json({ ok: false, error: 'route not found' }, 404);
   },
 };
