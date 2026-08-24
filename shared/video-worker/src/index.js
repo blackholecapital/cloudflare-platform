@@ -82,7 +82,7 @@ function normalizeSession(body = {}) {
   const avatarProvider = required(body.avatarProvider || body.avatar_provider, 'avatarProvider', 64).toLowerCase();
   const avatarSource = required(body.avatarSource || body.avatar_source, 'avatarSource', 64).toLowerCase();
   const voiceProvider = required(body.voiceProvider || body.voice_provider, 'voiceProvider', 64).toLowerCase();
-  const voiceModel = required(body.voiceModel || body.voice_model, 'voiceModel', 160);
+  const voiceModel = String(body.voiceModel || body.voice_model || '').trim().slice(0, 160);
   const voiceId = required(body.voiceId || body.voice_id, 'voiceId', 160);
   const instructions = required(body.instructions, 'instructions');
   const agentId = String(body.lemonsliceAgentId || body.lemonslice_agent_id || '').trim().slice(0, 240);
@@ -96,7 +96,10 @@ function normalizeSession(body = {}) {
   if (!['agent-id', 'image-url'].includes(avatarSource)) throw new Error('avatarSource must be agent-id or image-url');
   if (avatarSource === 'agent-id' && !agentId) throw new Error('lemonsliceAgentId is required');
   if (avatarSource === 'image-url' && !imageUrl) throw new Error('avatarImageUrl is required');
-  if (voiceProvider !== 'livekit-inference') throw new Error('voiceProvider must be livekit-inference');
+  if (!['livekit-inference', 'eila-runtime'].includes(voiceProvider)) {
+    throw new Error('voiceProvider must be livekit-inference or eila-runtime');
+  }
+  if (voiceProvider === 'livekit-inference' && !voiceModel) throw new Error('voiceModel is required for livekit-inference');
 
   return {
     tenantId,
