@@ -204,7 +204,10 @@ async function relayLemonSlice(request, env, url) {
   }
   console.log('RELAY_AUTH_OK', { tenantId, room });
 
-  const providerKey = String(env[`LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`] || '').trim();
+  const tenantProviderKey = env[`LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`];
+  const providerKey = String(
+    tenantProviderKey || (tenantId === 'buddys' ? env.LEMONSLICE_AI_FANS_API_KEY : '') || '',
+  ).trim();
   if (!providerKey) return json({ ok: false, error: `LemonSlice key missing for ${tenantId}` }, 503);
 
   const body = new Uint8Array(await request.arrayBuffer());
