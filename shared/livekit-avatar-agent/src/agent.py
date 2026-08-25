@@ -97,6 +97,16 @@ def build_tts(metadata: dict):
     raise RuntimeError(f"Unsupported voice_provider: {provider}")
 
 
+def text_input_handler(session: AgentSession, event: room_io.TextInputEvent) -> None:
+    """Route typed LiveKit chat through the same LLM, TTS, and avatar pipeline."""
+    message = str(event.text or "").strip()
+    if not message:
+        return
+    logger.info("TEXT_INPUT source=lk.chat characters=%s", len(message))
+    session.interrupt()
+    session.generate_reply(user_input=message)
+
+
 server = AgentServer(port=AGENT_HTTP_PORT)
 
 
@@ -144,6 +154,8 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
     room_options = room_io.RoomOptions(
         audio_input=room_io.AudioInputOptions(noise_cancellation=noise_cancellation.BVC()),
         audio_output=False,
+        text_input=room_io.TextInputOptions(text_input_cb=text_input_handler),
+        text_output=True,
     )
 
     await session.start(
