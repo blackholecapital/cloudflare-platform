@@ -21,8 +21,11 @@ queue = "blackhole-communication-events"
 #   LIVEKIT_API_SECRET
 #   BLACKHOLE_CAPABILITY_TOKEN
 #   LEMONSLICE_<TENANT>_API_KEY
-# Example tenant slot for AI Fans:
+# Optional tenant-isolated capability token:
+#   BLACKHOLE_<TENANT>_CAPABILITY_TOKEN
+# Example tenant slots:
 #   LEMONSLICE_AI_FANS_API_KEY
+#   BLACKHOLE_BUDDYS_CAPABILITY_TOKEN
 
 [observability]
 enabled = true
