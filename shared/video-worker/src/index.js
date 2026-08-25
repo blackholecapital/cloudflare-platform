@@ -25,8 +25,16 @@ const tenantSecretSlot = (tenantId) => tenantId
   .replace(/[^A-Z0-9]+/g, '_')
   .replace(/^_+|_+$/g, '');
 
-function capabilitySecret(env) {
-  return required(env.BLACKHOLE_CAPABILITY_TOKEN, 'BLACKHOLE_CAPABILITY_TOKEN', 500);
+function capabilitySecret(env, tenantId = '') {
+  const slot = tenantSecretSlot(tenantId);
+  const tenantSecret = slot
+    ? String(env[`BLACKHOLE_${slot}_CAPABILITY_TOKEN`] || '').trim()
+    : '';
+  return required(
+    tenantSecret || env.BLACKHOLE_CAPABILITY_TOKEN,
+    tenantSecret ? `BLACKHOLE_${slot}_CAPABILITY_TOKEN` : 'BLACKHOLE_CAPABILITY_TOKEN',
+    500,
+  );
 }
 
 function liveKitConfig(env) {
@@ -57,7 +65,7 @@ async function hmac(secret, message) {
 
 async function relayToken(env, tenantId, room) {
   const exp = Math.floor(Date.now() / 1000) + RELAY_TTL_SECONDS;
-  const sig = await hmac(capabilitySecret(env), `${tenantId}|${room}|${exp}`);
+  const sig = await hmac(capabilitySecret(env, tenantId), `${tenantId}|${room}|${exp}`);
   return `bh1.${exp}.${sig}`;
 }
 
@@ -71,7 +79,7 @@ async function authorizeRelay(request, env, tenantId, room) {
     return false;
   }
 
-  const expected = await hmac(capabilitySecret(env), `${tenantId}|${room}|${exp}`);
+  const expected = await hmac(capabilitySecret(env, tenantId), `${tenantId}|${room}|${exp}`);
   return signature === expected;
 }
 
@@ -122,10 +130,14 @@ function normalizeSession(body = {}) {
 }
 
 async function createSession(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const tenantId = cleanId(body.tenantId || body.tenant_id, 64);
   const supplied = String(request.headers.get('x-blackhole-capability-token') || '');
-  if (!supplied || supplied !== capabilitySecret(env)) return json({ ok: false, error: 'Unauthorized' }, 401);
+  if (!supplied || supplied !== capabilitySecret(env, tenantId)) {
+    return json({ ok: false, error: 'Unauthorized' }, 401);
+  }
 
-  const input = normalizeSession(await request.json().catch(() => ({})));
+  const input = normalizeSession(body);
   const livekit = liveKitConfig(env);
   const room = `bh-${input.tenantId}-${input.creatorId}-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}`;
   const relay = await relayToken(env, input.tenantId, room);
