@@ -11,7 +11,7 @@ from urllib.parse import quote
 from dotenv import load_dotenv
 from livekit import agents
 from livekit.agents import Agent, AgentServer, AgentSession, TurnHandlingOptions, inference, room_io
-from livekit.plugins import lemonslice, noise_cancellation
+from livekit.plugins import lemonslice, noise_cancellation, openai
 
 from livekit_tts import EilaRuntimeTTS
 
@@ -120,7 +120,7 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
     relay_token = required(metadata, "relay_token")
 
     session = AgentSession(
-        llm=inference.LLM(model=os.getenv("LIVEKIT_LLM_MODEL", "openai/gpt-4o-mini")),
+        llm=openai.LLM.with_ollama(model=os.getenv("LOCAL_LLM_MODEL", "huihui_ai/qwen3-abliterated:30b-a3b-instruct-2507-q3_K_M"), base_url=os.getenv("LOCAL_LLM_BASE_URL", "http://100.66.36.51:11435/v1"), temperature=float(os.getenv("LOCAL_LLM_TEMPERATURE", "0.85"))),
         stt=inference.STT(model=os.getenv("LIVEKIT_STT_MODEL", "deepgram/nova-3"), language="en"),
         tts=build_tts(metadata),
         turn_handling=TurnHandlingOptions(
