@@ -42,8 +42,18 @@ class EilaRuntimeTTS(tts.TTS):
             sample_rate=24000,
             num_channels=1,
         )
-        self.base_url = (base_url or os.environ.get("EILA_RUNTIME_URL", "")).rstrip("/")
-        self.token = token or os.environ.get("EILA_RUNTIME_TOKEN", "")
+        self.base_url = (
+            base_url
+            or os.environ.get("EILA_RUNTIME_URL", "")
+            or os.environ.get("BUDDY_RUNTIME_URL", "")
+            or os.environ.get("AI_FANS_RUNTIME_URL", "")
+        ).rstrip("/")
+        self.token = (
+            token
+            or os.environ.get("EILA_RUNTIME_TOKEN", "")
+            or os.environ.get("BUDDY_RUNTIME_TOKEN", "")
+            or os.environ.get("AI_FANS_RUNTIME_TOKEN", "")
+        )
         self.voice_id = voice_id
         self.streaming_pcm = (
             _env_bool("EILA_LIVEKIT_STREAMING_TTS")
