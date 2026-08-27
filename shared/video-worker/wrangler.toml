@@ -1,5 +1,5 @@
 name = "blackhole-video-worker"
-main = "src/index.js"
+main = "src/index-eila-fallback.js"
 compatibility_date = "2026-08-23"
 workers_dev = true
 
@@ -26,6 +26,9 @@ queue = "blackhole-communication-events"
 # Example tenant slots:
 #   LEMONSLICE_AI_FANS_API_KEY
 #   BLACKHOLE_BUDDYS_CAPABILITY_TOKEN
+#
+# EILA Overwatch may reuse LEMONSLICE_AI_FANS_API_KEY through the entry wrapper
+# until a dedicated LEMONSLICE_EILA_OVERWATCH_API_KEY is centralized.
 
 [observability]
 enabled = true

@@ -1,0 +1,20 @@
+name: Shared Video Worker Build
+
+on:
+  pull_request:
+    paths:
+      - "shared/video-worker/**"
+      - ".github/workflows/video-worker-build.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --prefix shared/video-worker
+      - run: node --check shared/video-worker/src/index-eila-fallback.js
+      - run: node --check shared/video-worker/src/index.js
+      - run: npx --yes wrangler@4.123.0 deploy --dry-run --config shared/video-worker/wrangler.toml --outdir /tmp/video-worker-dry-run
