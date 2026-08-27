@@ -1,0 +1,17 @@
+name: LiveKit Avatar Agent Syntax
+
+on:
+  pull_request:
+    paths:
+      - "shared/livekit-avatar-agent/**"
+      - ".github/workflows/livekit-avatar-syntax.yml"
+
+jobs:
+  python-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m py_compile shared/livekit-avatar-agent/src/agent.py shared/livekit-avatar-agent/src/livekit_tts.py
