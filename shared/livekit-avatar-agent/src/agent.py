@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import pathlib
+import re
 from urllib.parse import quote
 
 from dotenv import load_dotenv
@@ -38,6 +39,24 @@ def required(data: dict, key: str) -> str:
     if not value:
         raise RuntimeError(f"Missing required dispatch metadata: {key}")
     return value
+
+
+def tenant_slot(tenant_id: str) -> str:
+    return re.sub(r"[^A-Z0-9]+", "_", str(tenant_id or "").upper()).strip("_")
+
+
+def tenant_runtime(tenant_id: str) -> tuple[str | None, str | None]:
+    """Return tenant-specific TTS runtime settings when configured.
+
+    Existing generic EILA/Buddy/AI Fans environment variables remain the fallback inside
+    EilaRuntimeTTS, so this is backward-compatible with current home deployments.
+    """
+    slot = tenant_slot(tenant_id)
+    if not slot:
+        return None, None
+    base_url = os.getenv(f"BLACKHOLE_{slot}_RUNTIME_URL", "").strip() or None
+    token = os.getenv(f"BLACKHOLE_{slot}_RUNTIME_TOKEN", "").strip() or None
+    return base_url, token
 
 
 def metadata_for(ctx: agents.JobContext) -> dict:
@@ -87,12 +106,14 @@ def build_tts(metadata: dict):
         return inference.TTS(model=model, voice=voice, language="en")
 
     if provider == "eila-runtime":
+        base_url, token = tenant_runtime(tenant_id)
         logger.info(
-            "TTS_SOURCE tenant_id=%s provider=eila-runtime voice=%s",
+            "TTS_SOURCE tenant_id=%s provider=eila-runtime voice=%s tenant_runtime=%s",
             tenant_id,
             voice,
+            "configured" if base_url or token else "fallback",
         )
-        return EilaRuntimeTTS(voice_id=voice)
+        return EilaRuntimeTTS(base_url=base_url, token=token, voice_id=voice)
 
     raise RuntimeError(f"Unsupported voice_provider: {provider}")
 
