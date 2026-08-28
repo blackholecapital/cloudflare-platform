@@ -27,6 +27,23 @@ export async function bindingValue(binding, max = 5000) {
   return String(value || '').trim().slice(0, max);
 }
 
+export function apiHeaderValue(value, name = 'API key') {
+  const raw = String(value || '');
+  // Provider keys are opaque visible-ASCII tokens. Dashboard/clipboard flows can
+  // introduce zero-width Unicode or embedded whitespace that String.trim() does
+  // not remove and the Workers Fetch implementation rejects as a header value.
+  const normalized = raw.replace(/[^\x21-\x7E]/g, '');
+  if (!normalized) throw new Error(`${name} is required`);
+  if (normalized.length !== raw.length) {
+    console.warn('PROVIDER_KEY_NORMALIZED', {
+      name,
+      originalLength: raw.length,
+      normalizedLength: normalized.length,
+    });
+  }
+  return normalized;
+}
+
 async function requiredBinding(binding, name, max = 5000) {
   const value = await bindingValue(binding, max);
   if (!value) throw new Error(`${name} is required`);
@@ -220,12 +237,13 @@ async function relayLemonSlice(request, env, url) {
   const tenantProviderKey = await bindingValue(
     env[`LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`],
   );
-  const providerKey = tenantProviderKey || (
+  const rawProviderKey = tenantProviderKey || (
     tenantId === 'buddys'
       ? await bindingValue(env.LEMONSLICE_AI_FANS_API_KEY)
       : ''
   );
-  if (!providerKey) return json({ ok: false, error: `LemonSlice key missing for ${tenantId}` }, 503);
+  if (!rawProviderKey) return json({ ok: false, error: `LemonSlice key missing for ${tenantId}` }, 503);
+  const providerKey = apiHeaderValue(rawProviderKey, `LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`);
 
   const body = new Uint8Array(await request.arrayBuffer());
   const upstream = await fetch(String(env.LEMONSLICE_API_URL || 'https://lemonslice.com/api/liveai/sessions'), {
