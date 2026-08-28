@@ -189,7 +189,15 @@ def build_tts(metadata: dict):
             voice,
             "configured" if base_url or token else "fallback",
         )
-        return EilaRuntimeTTS(base_url=base_url, token=token, voice_id=voice)
+        # The private runtime exposes a progressive PCM endpoint. Keep this on at
+        # the adapter boundary so a missing host-level environment variable cannot
+        # silently put Eila back on the fully-buffered endpoint.
+        return EilaRuntimeTTS(
+            base_url=base_url,
+            token=token,
+            voice_id=voice,
+            streaming_pcm=True,
+        )
 
     raise RuntimeError(f"Unsupported voice_provider: {provider}")
 
@@ -268,13 +276,17 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
         room_options=room_options,
     )
 
-    await avatar.wait_for_join()
-    logger.info("AVATAR_JOINED tenant_id=%s room=%s", tenant_id, relay_room)
+    # Begin generation while LemonSlice finishes publishing its participant. The
+    # avatar session is already connected at this point, so TTS preparation can
+    # overlap the final join handshake instead of adding serial latency.
     logger.info("INTRO_REQUEST tenant_id=%s room=%s", tenant_id, relay_room)
-    await session.generate_reply(
+    intro = session.generate_reply(
         instructions=f"Greet the user naturally as {creator_name}. Keep it brief and stay in character.",
     )
     logger.info("INTRO_ACCEPTED tenant_id=%s room=%s", tenant_id, relay_room)
+    await avatar.wait_for_join()
+    logger.info("AVATAR_JOINED tenant_id=%s room=%s", tenant_id, relay_room)
+    await intro
 
 
 if __name__ == "__main__":
