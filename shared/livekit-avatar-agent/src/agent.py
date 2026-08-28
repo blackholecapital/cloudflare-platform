@@ -90,9 +90,19 @@ def avatar_options(metadata: dict) -> dict:
     raise RuntimeError(f"Unsupported avatar_source: {source}")
 
 
-def build_llm():
-    """Build the shared conversation model without a private-network single point of failure."""
-    provider = os.getenv("BLACKHOLE_LLM_PROVIDER", "livekit-inference").strip().lower()
+def is_eila(metadata: dict) -> bool:
+    tenant = str(metadata.get("tenant_id") or "").strip().lower()
+    creator = str(metadata.get("creator_id") or metadata.get("creator_name") or "").strip().lower()
+    return tenant == "eila-overwatch" or creator == "eila"
+
+
+def build_llm(metadata: dict):
+    """Pin Eila to her private uncensored Qwen; keep shared defaults for other creators."""
+    provider = (
+        "ollama"
+        if is_eila(metadata)
+        else os.getenv("BLACKHOLE_LLM_PROVIDER", "livekit-inference").strip().lower()
+    )
 
     if provider == "ollama":
         model = os.getenv(
@@ -168,18 +178,8 @@ def build_tts(metadata: dict):
         return livekit_tts(metadata, model, voice)
 
     if provider == "eila-runtime":
-        # Keep sessions usable while the private runtime is unhealthy. Set this
-        # explicitly to 1 after its authenticated synthesis smoke test passes.
-        runtime_enabled = os.getenv("EILA_RUNTIME_TTS_ENABLED", "0").strip() == "1"
-        if not runtime_enabled:
-            fallback = os.getenv("EILA_RUNTIME_FALLBACK_VOICE", "carina").strip()
-            logger.warning(
-                "TTS_RUNTIME_BYPASS tenant_id=%s runtime_unverified=true fallback=xai/tts-1:%s",
-                tenant_id,
-                fallback,
-            )
-            return livekit_tts(metadata, "xai/tts-1", fallback)
-
+        if not is_eila(metadata):
+            raise RuntimeError("The private Eila voice runtime is restricted to creator eila")
         base_url, token = tenant_runtime(tenant_id)
         logger.info(
             "TTS_SOURCE tenant_id=%s provider=eila-runtime voice=%s tenant_runtime=%s",
@@ -215,7 +215,7 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
     relay_token = required(metadata, "relay_token")
 
     session = AgentSession(
-        llm=build_llm(),
+        llm=build_llm(metadata),
         stt=inference.STT(model=os.getenv("LIVEKIT_STT_MODEL", "deepgram/nova-3"), language="en"),
         tts=build_tts(metadata),
         turn_handling=TurnHandlingOptions(
