@@ -20,26 +20,39 @@ const required = (value, name, max = 5000) => {
   return out;
 };
 
+export async function bindingValue(binding, max = 5000) {
+  const value = binding && typeof binding.get === 'function'
+    ? await binding.get()
+    : binding;
+  return String(value || '').trim().slice(0, max);
+}
+
+async function requiredBinding(binding, name, max = 5000) {
+  const value = await bindingValue(binding, max);
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
 const tenantSecretSlot = (tenantId) => tenantId
   .toUpperCase()
   .replace(/[^A-Z0-9]+/g, '_')
   .replace(/^_+|_+$/g, '');
 
-function capabilitySecret(env, tenantId = '') {
+async function capabilitySecret(env, tenantId = '') {
   const slot = tenantSecretSlot(tenantId);
   const tenantSecret = slot
-    ? String(env[`BLACKHOLE_${slot}_CAPABILITY_TOKEN`] || '').trim()
+    ? await bindingValue(env[`BLACKHOLE_${slot}_CAPABILITY_TOKEN`], 500)
     : '';
-  return required(
+  return requiredBinding(
     tenantSecret || env.BLACKHOLE_CAPABILITY_TOKEN,
     tenantSecret ? `BLACKHOLE_${slot}_CAPABILITY_TOKEN` : 'BLACKHOLE_CAPABILITY_TOKEN',
     500,
   );
 }
 
-function liveKitConfig(env) {
-  const apiKey = required(env.LIVEKIT_API_KEY, 'LIVEKIT_API_KEY', 500);
-  const apiSecret = required(env.LIVEKIT_API_SECRET, 'LIVEKIT_API_SECRET', 1000);
+async function liveKitConfig(env) {
+  const apiKey = await requiredBinding(env.LIVEKIT_API_KEY, 'LIVEKIT_API_KEY', 500);
+  const apiSecret = await requiredBinding(env.LIVEKIT_API_SECRET, 'LIVEKIT_API_SECRET', 1000);
   const agentName = required(env.VIDEO_AGENT_NAME, 'VIDEO_AGENT_NAME', 160);
   const wsUrl = required(env.LIVEKIT_URL, 'LIVEKIT_URL', 1000);
   const httpUrl = new URL(wsUrl);
@@ -65,7 +78,7 @@ async function hmac(secret, message) {
 
 async function relayToken(env, tenantId, room) {
   const exp = Math.floor(Date.now() / 1000) + RELAY_TTL_SECONDS;
-  const sig = await hmac(capabilitySecret(env, tenantId), `${tenantId}|${room}|${exp}`);
+  const sig = await hmac(await capabilitySecret(env, tenantId), `${tenantId}|${room}|${exp}`);
   return `bh1.${exp}.${sig}`;
 }
 
@@ -79,7 +92,7 @@ async function authorizeRelay(request, env, tenantId, room) {
     return false;
   }
 
-  const expected = await hmac(capabilitySecret(env, tenantId), `${tenantId}|${room}|${exp}`);
+  const expected = await hmac(await capabilitySecret(env, tenantId), `${tenantId}|${room}|${exp}`);
   return signature === expected;
 }
 
@@ -133,12 +146,12 @@ async function createSession(request, env) {
   const body = await request.json().catch(() => ({}));
   const tenantId = cleanId(body.tenantId || body.tenant_id, 64);
   const supplied = String(request.headers.get('x-blackhole-capability-token') || '');
-  if (!supplied || supplied !== capabilitySecret(env, tenantId)) {
+  if (!supplied || supplied !== await capabilitySecret(env, tenantId)) {
     return json({ ok: false, error: 'Unauthorized' }, 401);
   }
 
   const input = normalizeSession(body);
-  const livekit = liveKitConfig(env);
+  const livekit = await liveKitConfig(env);
   const room = `bh-${input.tenantId}-${input.creatorId}-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}`;
   const relay = await relayToken(env, input.tenantId, room);
 
@@ -204,10 +217,14 @@ async function relayLemonSlice(request, env, url) {
   }
   console.log('RELAY_AUTH_OK', { tenantId, room });
 
-  const tenantProviderKey = env[`LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`];
-  const providerKey = String(
-    tenantProviderKey || (tenantId === 'buddys' ? env.LEMONSLICE_AI_FANS_API_KEY : '') || '',
-  ).trim();
+  const tenantProviderKey = await bindingValue(
+    env[`LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`],
+  );
+  const providerKey = tenantProviderKey || (
+    tenantId === 'buddys'
+      ? await bindingValue(env.LEMONSLICE_AI_FANS_API_KEY)
+      : ''
+  );
   if (!providerKey) return json({ ok: false, error: `LemonSlice key missing for ${tenantId}` }, 503);
 
   const body = new Uint8Array(await request.arrayBuffer());
@@ -232,11 +249,15 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
+      const [livekitApiKey, livekitApiSecret] = await Promise.all([
+        bindingValue(env.LIVEKIT_API_KEY, 500).catch(() => ''),
+        bindingValue(env.LIVEKIT_API_SECRET, 1000).catch(() => ''),
+      ]);
       return json({
         ok: true,
         service: 'blackhole-video-worker',
-        version: 'lean-v1',
-        livekitConfigured: Boolean(env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET),
+        version: 'lean-v2-secrets-store',
+        livekitConfigured: Boolean(env.LIVEKIT_URL && livekitApiKey && livekitApiSecret),
         agentName: String(env.VIDEO_AGENT_NAME || ''),
         relayAuth: 'room-scoped-hmac',
       });
