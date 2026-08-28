@@ -121,6 +121,37 @@ def build_llm():
     raise RuntimeError(f"Unsupported BLACKHOLE_LLM_PROVIDER: {provider}")
 
 
+XAI_VOICES = {
+    "ara", "eve", "leo", "rex", "sal", "carina", "zagan",
+    "helix", "orion", "luna", "iris", "altair", "zenith",
+}
+
+
+def xai_fallback_voice(metadata: dict) -> str:
+    creator = str(metadata.get("creator_id") or metadata.get("creator_name") or "").lower()
+    if "chuck" in creator or "buddy" in creator:
+        return "leo"
+    if "sienna" in creator:
+        return "luna"
+    if "nova" in creator:
+        return "eve"
+    return "carina"
+
+
+def livekit_tts(metadata: dict, model: str, voice: str):
+    normalized_voice = voice.strip().lower()
+    if model == "xai/tts-1" and normalized_voice not in XAI_VOICES:
+        fallback = xai_fallback_voice(metadata)
+        logger.warning(
+            "TTS_VOICE_FALLBACK model=%s invalid_voice=%s fallback=%s",
+            model,
+            voice,
+            fallback,
+        )
+        normalized_voice = fallback
+    return inference.TTS(model=model, voice=normalized_voice, language="en")
+
+
 def build_tts(metadata: dict):
     tenant_id = required(metadata, "tenant_id")
     provider = required(metadata, "voice_provider").lower()
@@ -134,9 +165,21 @@ def build_tts(metadata: dict):
             model,
             voice,
         )
-        return inference.TTS(model=model, voice=voice, language="en")
+        return livekit_tts(metadata, model, voice)
 
     if provider == "eila-runtime":
+        # Keep sessions usable while the private runtime is unhealthy. Set this
+        # explicitly to 1 after its authenticated synthesis smoke test passes.
+        runtime_enabled = os.getenv("EILA_RUNTIME_TTS_ENABLED", "0").strip() == "1"
+        if not runtime_enabled:
+            fallback = os.getenv("EILA_RUNTIME_FALLBACK_VOICE", "carina").strip()
+            logger.warning(
+                "TTS_RUNTIME_BYPASS tenant_id=%s runtime_unverified=true fallback=xai/tts-1:%s",
+                tenant_id,
+                fallback,
+            )
+            return livekit_tts(metadata, "xai/tts-1", fallback)
+
         base_url, token = tenant_runtime(tenant_id)
         logger.info(
             "TTS_SOURCE tenant_id=%s provider=eila-runtime voice=%s tenant_runtime=%s",
