@@ -105,16 +105,18 @@ def build_llm(metadata: dict):
     )
 
     if provider == "ollama":
+        # EILA is deliberately isolated from the generic LOCAL_LLM_* settings.
+        # Those are shared by other tenants and previously redirected her to qwen3.5:9b.
         model = os.getenv(
-            "LOCAL_LLM_MODEL",
+            "EILA_LLM_MODEL",
             "huihui_ai/qwen3-abliterated:30b-a3b-instruct-2507-q3_K_M",
         ).strip()
-        base_url = os.getenv("LOCAL_LLM_BASE_URL", "http://100.66.36.51:11435/v1").strip()
-        logger.info("LLM_SOURCE provider=ollama model=%s base_url=%s", model, base_url)
+        base_url = os.getenv("EILA_LLM_BASE_URL", "http://100.66.36.51:11435/v1").strip()
+        logger.info("LLM_SOURCE tenant=eila provider=ollama model=%s base_url=%s", model, base_url)
         return openai.LLM.with_ollama(
             model=model,
             base_url=base_url,
-            temperature=float(os.getenv("LOCAL_LLM_TEMPERATURE", "0.85")),
+            temperature=float(os.getenv("EILA_LLM_TEMPERATURE", "0.85")),
         )
 
     if provider == "livekit-inference":
@@ -242,6 +244,13 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
         api_key=relay_token,
     )
 
+    logger.info(
+        "SESSION_PIPELINE tenant_id=%s creator=%s voice_provider=%s voice_id=%s",
+        tenant_id,
+        creator_name,
+        metadata.get("voice_provider"),
+        metadata.get("voice_id"),
+    )
     logger.info("RELAY_START tenant_id=%s room=%s", tenant_id, relay_room)
     await avatar.start(session, room=ctx.room)
     logger.info("RELAY_CONNECTED tenant_id=%s room=%s", tenant_id, relay_room)
@@ -261,9 +270,11 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
 
     await avatar.wait_for_join()
     logger.info("AVATAR_JOINED tenant_id=%s room=%s", tenant_id, relay_room)
+    logger.info("INTRO_REQUEST tenant_id=%s room=%s", tenant_id, relay_room)
     await session.generate_reply(
         instructions=f"Greet the user naturally as {creator_name}. Keep it brief and stay in character.",
     )
+    logger.info("INTRO_ACCEPTED tenant_id=%s room=%s", tenant_id, relay_room)
 
 
 if __name__ == "__main__":
