@@ -60,6 +60,12 @@ class EilaRuntimeTTS(tts.TTS):
             if streaming_pcm is None
             else streaming_pcm
         )
+        logger.info(
+            "EILA_TTS_RUNTIME base_url=%s voice=%s streaming_pcm=%s",
+            self.base_url,
+            self.voice_id,
+            self.streaming_pcm,
+        )
         if not self.base_url:
             raise ValueError("EILA_RUNTIME_URL is required for eila-runtime voice provider")
         if not self.token:
@@ -97,6 +103,7 @@ class EilaChunkedStream(tts.ChunkedStream):
         timeout = aiohttp.ClientTimeout(total=120, sock_connect=self._conn_options.timeout)
         emitted = False
 
+        logger.info("EILA_TTS_REQUEST endpoint=%s characters=%s", endpoint, len(self._input_text))
         try:
             async with session.post(
                 f"{self.runtime.base_url}{endpoint}",
@@ -124,10 +131,12 @@ class EilaChunkedStream(tts.ChunkedStream):
                             mime_type="audio/pcm",
                         )
                         emitted = True
+                        logger.info("EILA_TTS_FIRST_AUDIO endpoint=%s", endpoint)
                     output_emitter.push(chunk)
 
                 if not emitted:
                     raise _PreAudioFailure("EILA runtime TTS returned no PCM audio")
+                logger.info("EILA_TTS_COMPLETE endpoint=%s", endpoint)
         except asyncio.CancelledError:
             raise
         except _MidStreamFailure:
