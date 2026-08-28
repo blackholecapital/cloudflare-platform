@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import worker, { bindingValue } from '../src/index.js';
+import worker, { apiHeaderValue, bindingValue } from '../src/index.js';
 
 test('bindingValue supports legacy Worker secrets', async () => {
   assert.equal(await bindingValue('  legacy-secret  '), 'legacy-secret');
@@ -18,6 +18,14 @@ test('bindingValue resolves Cloudflare Secrets Store bindings', async () => {
 
   assert.equal(await bindingValue(binding), 'centralized-secret');
   assert.equal(calls, 1);
+});
+
+test('apiHeaderValue removes clipboard characters invalid in HTTP headers', () => {
+  assert.equal(apiHeaderValue(' sk-live\u200b-token\r\n'), 'sk-live-token');
+});
+
+test('apiHeaderValue rejects a value with no visible ASCII token', () => {
+  assert.throws(() => apiHeaderValue('\u200b\r\n'), /API key is required/);
 });
 
 test('health validates resolved LiveKit secret values', async () => {
