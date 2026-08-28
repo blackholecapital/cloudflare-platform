@@ -90,6 +90,37 @@ def avatar_options(metadata: dict) -> dict:
     raise RuntimeError(f"Unsupported avatar_source: {source}")
 
 
+def build_llm():
+    """Build the shared conversation model without a private-network single point of failure."""
+    provider = os.getenv("BLACKHOLE_LLM_PROVIDER", "livekit-inference").strip().lower()
+
+    if provider == "ollama":
+        model = os.getenv(
+            "LOCAL_LLM_MODEL",
+            "huihui_ai/qwen3-abliterated:30b-a3b-instruct-2507-q3_K_M",
+        ).strip()
+        base_url = os.getenv("LOCAL_LLM_BASE_URL", "http://100.66.36.51:11435/v1").strip()
+        logger.info("LLM_SOURCE provider=ollama model=%s base_url=%s", model, base_url)
+        return openai.LLM.with_ollama(
+            model=model,
+            base_url=base_url,
+            temperature=float(os.getenv("LOCAL_LLM_TEMPERATURE", "0.85")),
+        )
+
+    if provider == "livekit-inference":
+        model = os.getenv("LIVEKIT_LLM_MODEL", "google/gemma-4-31b-it").strip()
+        logger.info("LLM_SOURCE provider=livekit-inference model=%s", model)
+        return inference.LLM(
+            model=model,
+            extra_kwargs={
+                "temperature": float(os.getenv("LIVEKIT_LLM_TEMPERATURE", "0.7")),
+                "max_completion_tokens": int(os.getenv("LIVEKIT_LLM_MAX_TOKENS", "500")),
+            },
+        )
+
+    raise RuntimeError(f"Unsupported BLACKHOLE_LLM_PROVIDER: {provider}")
+
+
 def build_tts(metadata: dict):
     tenant_id = required(metadata, "tenant_id")
     provider = required(metadata, "voice_provider").lower()
@@ -141,7 +172,7 @@ async def blackhole_avatar_agent(ctx: agents.JobContext) -> None:
     relay_token = required(metadata, "relay_token")
 
     session = AgentSession(
-        llm=openai.LLM.with_ollama(model=os.getenv("LOCAL_LLM_MODEL", "huihui_ai/qwen3-abliterated:30b-a3b-instruct-2507-q3_K_M"), base_url=os.getenv("LOCAL_LLM_BASE_URL", "http://100.66.36.51:11435/v1"), temperature=float(os.getenv("LOCAL_LLM_TEMPERATURE", "0.85"))),
+        llm=build_llm(),
         stt=inference.STT(model=os.getenv("LIVEKIT_STT_MODEL", "deepgram/nova-3"), language="en"),
         tts=build_tts(metadata),
         turn_handling=TurnHandlingOptions(
