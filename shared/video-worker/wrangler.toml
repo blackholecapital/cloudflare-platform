@@ -30,6 +30,18 @@ queue = "blackhole-communication-events"
 # EILA Overwatch may reuse LEMONSLICE_AI_FANS_API_KEY through the entry wrapper
 # until a dedicated LEMONSLICE_EILA_OVERWATCH_API_KEY is centralized.
 
+# Buddy production uses this shared broker. Both bindings resolve from the same
+# centralized values previously attached to the dedicated Buddy video Worker.
+[[secrets_store_secrets]]
+binding = "BLACKHOLE_BUDDYS_CAPABILITY_TOKEN"
+store_id = "00b34d29f2c94685b0f250dc5b1ee875"
+secret_name = "BUDDYS_VIDEO_CAPABILITY_TOKEN"
+
+[[secrets_store_secrets]]
+binding = "LEMONSLICE_BUDDYS_API_KEY"
+store_id = "00b34d29f2c94685b0f250dc5b1ee875"
+secret_name = "XYZ_DEMO_LEMONSLICE_API_KEY"
+
 [observability]
 enabled = true
 head_sampling_rate = 1
