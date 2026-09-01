@@ -2,17 +2,15 @@
 
 The shared `blackhole-avatar` LiveKit agent can now choose a TTS runtime per video tenant without changing the existing fallback behavior.
 
-EILA Overwatch uses its tenant-local private runtime:
+For Buddy and EILA Overwatch on the same home avatar service, set:
 
 ```bash
-BLACKHOLE_EILA_OVERWATCH_RUNTIME_URL=<local EILA runtime URL>
+BLACKHOLE_BUDDYS_RUNTIME_URL=https://buddy-voice.xyz-labs.xyz
+BLACKHOLE_BUDDYS_RUNTIME_TOKEN=<buddy runtime token>
+
+BLACKHOLE_EILA_OVERWATCH_RUNTIME_URL=https://alley-voice.xyz-labs.xyz
 BLACKHOLE_EILA_OVERWATCH_RUNTIME_TOKEN=<EILA runtime token>
 ```
-
-Buddy production now uses `livekit-inference` voice metadata on this shared
-adapter, matching AI Fans. It does not require `buddy-voice.xyz-labs.xyz` or a
-dedicated `buddys-avatar` process to open a video room. The former Buddy runtime
-variables remain supported only as an explicit rollback path.
 
 Tenant IDs are upper-cased and non-alphanumeric characters become `_`, so `eila-overwatch` maps to `EILA_OVERWATCH`.
 
