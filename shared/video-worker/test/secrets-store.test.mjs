@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
 import worker, { apiHeaderValue, bindingValue } from '../src/index.js';
 
@@ -51,4 +52,10 @@ test('health reports an unreadable Secrets Store binding as unconfigured', async
 
   assert.equal(response.status, 200);
   assert.equal((await response.json()).livekitConfigured, false);
+});
+
+test('shared broker declares Buddy tenant secrets', () => {
+  const config = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
+  assert.match(config, /binding = "BLACKHOLE_BUDDYS_CAPABILITY_TOKEN"\s+store_id = "00b34d29f2c94685b0f250dc5b1ee875"\s+secret_name = "BUDDYS_VIDEO_CAPABILITY_TOKEN"/);
+  assert.match(config, /binding = "LEMONSLICE_BUDDYS_API_KEY"\s+store_id = "00b34d29f2c94685b0f250dc5b1ee875"\s+secret_name = "XYZ_DEMO_LEMONSLICE_API_KEY"/);
 });
