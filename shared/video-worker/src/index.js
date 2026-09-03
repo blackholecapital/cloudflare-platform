@@ -55,16 +55,17 @@ const tenantSecretSlot = (tenantId) => tenantId
   .replace(/[^A-Z0-9]+/g, '_')
   .replace(/^_+|_+$/g, '');
 
-async function capabilitySecret(env, tenantId = '') {
-  const slot = tenantSecretSlot(tenantId);
-  const tenantSecret = slot
-    ? await bindingValue(env[`BLACKHOLE_${slot}_CAPABILITY_TOKEN`], 500)
-    : '';
-  return requiredBinding(
-    tenantSecret || env.BLACKHOLE_CAPABILITY_TOKEN,
-    tenantSecret ? `BLACKHOLE_${slot}_CAPABILITY_TOKEN` : 'BLACKHOLE_CAPABILITY_TOKEN',
-    500,
+async function capabilitySecret(env) {
+  return requiredBinding(env.BLACKHOLE_CAPABILITY_TOKEN, 'BLACKHOLE_CAPABILITY_TOKEN', 500);
+}
+
+export async function lemonSliceProviderKey(env, tenantId) {
+  const tenantProviderKey = await bindingValue(
+    env[`LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`],
   );
+  return tenantProviderKey
+    || await bindingValue(env.LEMONSLICE_API_KEY)
+    || await bindingValue(env.LEMONSLICE_AI_FANS_API_KEY);
 }
 
 async function liveKitConfig(env) {
@@ -95,7 +96,7 @@ async function hmac(secret, message) {
 
 async function relayToken(env, tenantId, room) {
   const exp = Math.floor(Date.now() / 1000) + RELAY_TTL_SECONDS;
-  const sig = await hmac(await capabilitySecret(env, tenantId), `${tenantId}|${room}|${exp}`);
+  const sig = await hmac(await capabilitySecret(env), `${tenantId}|${room}|${exp}`);
   return `bh1.${exp}.${sig}`;
 }
 
@@ -109,7 +110,7 @@ async function authorizeRelay(request, env, tenantId, room) {
     return false;
   }
 
-  const expected = await hmac(await capabilitySecret(env, tenantId), `${tenantId}|${room}|${exp}`);
+  const expected = await hmac(await capabilitySecret(env), `${tenantId}|${room}|${exp}`);
   return signature === expected;
 }
 
@@ -164,7 +165,7 @@ async function tenantReadiness(request, env, url) {
   if (!tenantId) return json({ ok: false, error: 'tenant is required' }, 400);
 
   const supplied = String(request.headers.get('x-blackhole-capability-token') || '');
-  if (!supplied || supplied !== await capabilitySecret(env, tenantId)) {
+  if (!supplied || supplied !== await capabilitySecret(env)) {
     return json({
       ok: false,
       service: 'blackhole-video-worker',
@@ -200,7 +201,7 @@ async function createSession(request, env) {
   const body = await request.json().catch(() => ({}));
   const tenantId = cleanId(body.tenantId || body.tenant_id, 64);
   const supplied = String(request.headers.get('x-blackhole-capability-token') || '');
-  if (!supplied || supplied !== await capabilitySecret(env, tenantId)) {
+  if (!supplied || supplied !== await capabilitySecret(env)) {
     return json({ ok: false, error: 'Unauthorized' }, 401);
   }
 
@@ -271,14 +272,7 @@ async function relayLemonSlice(request, env, url) {
   }
   console.log('RELAY_AUTH_OK', { tenantId, room });
 
-  const tenantProviderKey = await bindingValue(
-    env[`LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`],
-  );
-  const rawProviderKey = tenantProviderKey || (
-    tenantId === 'buddys'
-      ? await bindingValue(env.LEMONSLICE_AI_FANS_API_KEY)
-      : ''
-  );
+  const rawProviderKey = await lemonSliceProviderKey(env, tenantId);
   if (!rawProviderKey) return json({ ok: false, error: `LemonSlice key missing for ${tenantId}` }, 503);
   const providerKey = apiHeaderValue(rawProviderKey, `LEMONSLICE_${tenantSecretSlot(tenantId)}_API_KEY`);
 

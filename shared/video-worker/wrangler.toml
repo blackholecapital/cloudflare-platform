@@ -1,5 +1,5 @@
 name = "blackhole-video-worker"
-main = "src/index-eila-fallback.js"
+main = "src/index.js"
 compatibility_date = "2026-08-23"
 workers_dev = true
 
@@ -21,14 +21,10 @@ queue = "blackhole-communication-events"
 #   LIVEKIT_API_SECRET
 #   BLACKHOLE_CAPABILITY_TOKEN
 #   LEMONSLICE_<TENANT>_API_KEY
-# Optional tenant-isolated capability token:
-#   BLACKHOLE_<TENANT>_CAPABILITY_TOKEN
-# Example tenant slots:
-#   LEMONSLICE_AI_FANS_API_KEY
-#   BLACKHOLE_BUDDYS_CAPABILITY_TOKEN
-#
-# EILA Overwatch may reuse LEMONSLICE_AI_FANS_API_KEY through the entry wrapper
-# until a dedicated LEMONSLICE_EILA_OVERWATCH_API_KEY is centralized.
+# Optional tenant-specific LemonSlice key:
+#   LEMONSLICE_<TENANT>_API_KEY
+# The current trusted demo plane falls back to the existing shared
+# LEMONSLICE_AI_FANS_API_KEY when a tenant-specific provider key is absent.
 
 [observability]
 enabled = true

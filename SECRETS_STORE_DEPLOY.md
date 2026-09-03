@@ -28,7 +28,7 @@ node scripts/deploy-with-secrets-store.mjs \
 
 Additional Wrangler deploy flags may be forwarded after `--`.
 
-## EILA video worker
+## Shared video worker
 
 ```bash
 npm run deploy:video:store
@@ -38,7 +38,7 @@ This currently maps:
 
 - `XYZ_DEMO_LIVEKIT_API_KEY` -> `LIVEKIT_API_KEY`
 - `XYZ_DEMO_LIVEKIT_API_SECRET` -> `LIVEKIT_API_SECRET`
-- `XYZ_DEMO_EILA_RUNTIME_TOKEN` -> `BLACKHOLE_EILA_OVERWATCH_CAPABILITY_TOKEN`
+- `XYZ_DEMO_EILA_RUNTIME_TOKEN` -> `BLACKHOLE_CAPABILITY_TOKEN`
 
 The EILA Overwatch repository uses the same helper through its own `npm run deploy:worker:store` wrapper and maps `XYZ_DEMO_EILA_RUNTIME_TOKEN` to both `EILA_RUNTIME_TOKEN` and `BLACKHOLE_CAPABILITY_TOKEN`.
 
