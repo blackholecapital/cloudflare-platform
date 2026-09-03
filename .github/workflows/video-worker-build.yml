@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "shared/video-worker/**"
+      - "shared/livekit-avatar-agent/**"
+      - "AGENTS.md"
+      - "README.md"
       - "package.json"
       - "scripts/deploy-with-secrets-store.mjs"
       - "scripts/deploy-video-worker.sh"
@@ -21,7 +24,6 @@ jobs:
           node-version: "22"
       - run: npm install --prefix shared/video-worker
       - run: npm test --prefix shared/video-worker
-      - run: node --check shared/video-worker/src/index-eila-fallback.js
       - run: node --check shared/video-worker/src/index.js
       - run: bash -n scripts/deploy-video-worker.sh
       - name: Validate Windows broker deployment entry point
@@ -32,9 +34,13 @@ jobs:
           if (-not $source.Contains('.Replace("\", "/")')) { throw "Windows path conversion must replace single backslashes." }
           $sample = "ai\cloudflare-platform".Replace("\", "/")
           if ($sample -ne "ai/cloudflare-platform") { throw "Windows path conversion failed: $sample" }
-      - name: Validate centralized tenant capability bindings
+      - name: Enforce edge-relay-only boundary
         run: |
           ! grep -q '\[\[secrets_store_secrets\]\]' shared/video-worker/wrangler.toml
-          grep -q 'BLACKHOLE_AI_FANS_CAPABILITY_TOKEN=XYZ_DEMO_EILA_RUNTIME_TOKEN' package.json
-          grep -q 'BLACKHOLE_EILA_OVERWATCH_CAPABILITY_TOKEN=XYZ_DEMO_EILA_RUNTIME_TOKEN' package.json
-      - run: npx --yes wrangler@4.123.0 deploy --dry-run --config shared/video-worker/wrangler.toml --outdir /tmp/video-worker-dry-run
+          grep -q 'BLACKHOLE_CAPABILITY_TOKEN=XYZ_DEMO_EILA_RUNTIME_TOKEN' package.json
+          ! grep -q 'BLACKHOLE_AI_FANS_CAPABILITY_TOKEN\|BLACKHOLE_EILA_OVERWATCH_CAPABILITY_TOKEN' package.json
+          grep -q 'main = "src/index.js"' shared/video-worker/wrangler.toml
+          test ! -e shared/livekit-avatar-agent
+          test ! -e shared/video-worker/src/index-eila-fallback.js
+          grep -q 'edge relay only' AGENTS.md
+      - run: npx --yes wrangler@4.126.0 deploy --dry-run --config shared/video-worker/wrangler.toml --outdir /tmp/video-worker-dry-run
