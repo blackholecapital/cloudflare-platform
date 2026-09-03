@@ -27,7 +27,7 @@ if ($repoRoot -notmatch "^([A-Za-z]):\\(.*)$") {
   throw "cloudflare-platform must be checked out on a Windows drive, for example F:\\ai\\cloudflare-platform."
 }
 $drive = $Matches[1].ToLowerInvariant()
-$relative = $Matches[2].Replace("\\", "/")
+$relative = $Matches[2].Replace("\", "/")
 $wslRoot = "/mnt/$drive/$relative"
 $wslScript = "$wslRoot/scripts/deploy-video-worker.sh"
 $wslCommand = "set -o pipefail; sed 's/\r$//' '$wslScript' | bash"
