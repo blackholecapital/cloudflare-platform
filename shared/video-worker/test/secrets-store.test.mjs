@@ -52,3 +52,41 @@ test('health reports an unreadable Secrets Store binding as unconfigured', async
   assert.equal(response.status, 200);
   assert.equal((await response.json()).livekitConfigured, false);
 });
+
+test('tenant readiness proves the capability token without creating a LiveKit room', async () => {
+  const secret = (value) => ({ get: async () => value });
+  const response = await worker.fetch(new Request('https://video.example/internal/tenant/readiness?tenant=ai-fans', {
+    headers: { 'x-blackhole-capability-token': 'shared-capability' },
+  }), {
+    BLACKHOLE_CAPABILITY_TOKEN: secret('shared-capability'),
+    LIVEKIT_URL: 'wss://example.livekit.cloud',
+    LIVEKIT_API_KEY: secret('api-key'),
+    LIVEKIT_API_SECRET: secret('api-secret'),
+    VIDEO_AGENT_NAME: 'blackhole-avatar',
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true,
+    service: 'blackhole-video-worker',
+    tenantId: 'ai-fans',
+    capabilityAuthorized: true,
+    livekitConfigured: true,
+    agentName: 'blackhole-avatar',
+  });
+});
+
+test('tenant readiness rejects a drifted capability token', async () => {
+  const response = await worker.fetch(new Request('https://video.example/internal/tenant/readiness?tenant=ai-fans', {
+    headers: { 'x-blackhole-capability-token': 'wrong-capability' },
+  }), {
+    BLACKHOLE_CAPABILITY_TOKEN: { get: async () => 'shared-capability' },
+  });
+
+  assert.equal(response.status, 401);
+  const body = await response.json();
+  assert.equal(body.ok, false);
+  assert.equal(body.capabilityAuthorized, false);
+  assert.equal(body.error, 'Unauthorized');
+});
+
