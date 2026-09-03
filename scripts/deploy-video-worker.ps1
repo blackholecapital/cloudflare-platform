@@ -16,6 +16,12 @@ if (-not (Test-Path (Join-Path $repoRoot ".git"))) {
   throw "Cloudflare platform checkout not found: $repoRoot"
 }
 
+$dirty = @(& git.exe -C $repoRoot status --porcelain)
+Assert-ExitCode "Could not inspect the cloudflare-platform checkout."
+if ($dirty.Count -gt 0) {
+  throw "cloudflare-platform checkout has local changes. Commit or stash them before production deployment."
+}
+
 Write-Host ""
 Write-Host "==> Updating the shared broker owner checkout with Windows Git"
 & git.exe -C $repoRoot switch main
