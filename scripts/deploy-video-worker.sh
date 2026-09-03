@@ -29,8 +29,20 @@ if [[ -z "$npm_bin" ]]; then
 fi
 
 cd "$repo_root"
-"$npm_bin" install
-"$npm_bin" install --prefix shared/video-worker
+current_branch="$(git branch --show-current)"
+if [[ "$current_branch" != "main" ]]; then
+  echo "ERROR: Shared broker deployment requires main; observed branch=$current_branch." >&2
+  exit 2
+fi
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "ERROR: cloudflare-platform checkout has local changes; refusing production deployment." >&2
+  git status --short
+  exit 2
+fi
+
+"$npm_bin" ci
+"$npm_bin" install --prefix shared/video-worker --no-package-lock
+"$npm_bin" test --prefix shared/video-worker
 "$npm_bin" run deploy:video:store
 
 echo "[READY] blackhole-video-worker deployed with centralized tenant capability bindings."
