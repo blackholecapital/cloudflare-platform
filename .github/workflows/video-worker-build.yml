@@ -27,7 +27,11 @@ jobs:
       - name: Validate Windows broker deployment entry point
         shell: pwsh
         run: |
-          [scriptblock]::Create((Get-Content scripts/deploy-video-worker.ps1 -Raw)) | Out-Null
+          $source = Get-Content scripts/deploy-video-worker.ps1 -Raw
+          [scriptblock]::Create($source) | Out-Null
+          if (-not $source.Contains('.Replace("\", "/")')) { throw "Windows path conversion must replace single backslashes." }
+          $sample = "ai\cloudflare-platform".Replace("\", "/")
+          if ($sample -ne "ai/cloudflare-platform") { throw "Windows path conversion failed: $sample" }
       - name: Validate centralized tenant capability bindings
         run: |
           ! grep -q '\[\[secrets_store_secrets\]\]' shared/video-worker/wrangler.toml
