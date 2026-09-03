@@ -39,7 +39,7 @@ $wslScript = "$wslRoot/scripts/deploy-video-worker.sh"
 # Windows Git has already validated and updated the checkout. Tell the Linux
 # runner to skip the duplicate DrvFS Git scan, which can block for minutes with
 # no output on a Windows-mounted repository.
-$wslCommand = 'set -o pipefail; printf "\n==> WSL relay runner started (%s)\n" "$(date -Is)"; sed ''s/\r$//'' "$1" | timeout --foreground 35m bash'
+$wslCommand = 'set -o pipefail; sed ''s/\r$//'' "$1" | timeout --foreground 35m bash'
 
 Write-Host ""
 Write-Host "==> Deploying only the shared blackhole-video-worker"
