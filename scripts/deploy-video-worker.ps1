@@ -39,7 +39,9 @@ $wslScript = "$wslRoot/scripts/deploy-video-worker.sh"
 # Windows Git has already validated and updated the checkout. Tell the Linux
 # runner to skip the duplicate DrvFS Git scan, which can block for minutes with
 # no output on a Windows-mounted repository.
-$wslCommand = 'set -o pipefail; sed ''s/\r$//'' "$1" | timeout --foreground 35m bash'
+$linuxCommand = "set -o pipefail`nsed 's/\r$//' '$wslScript' | timeout --foreground 35m bash"
+$encodedCommand = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($linuxCommand))
+$wslCommand = "echo $encodedCommand|base64 -d|bash"
 
 Write-Host ""
 Write-Host "==> Deploying only the shared blackhole-video-worker"
@@ -47,7 +49,7 @@ Write-Host "    WSL distribution: $Distribution"
 Write-Host "    Linux user: $LinuxUser"
 Write-Host "    Repository: $wslRoot"
 Write-Host "    A hard 35-minute Linux-side timeout applies to the complete relay run."
-& wsl.exe -d $Distribution -u $LinuxUser -- env "CLOUDFLARE_PLATFORM_DIR=$wslRoot" "CLOUDFLARE_PLATFORM_CHECKOUT_VERIFIED=1" bash -c $wslCommand bash $wslScript
+& wsl.exe -d $Distribution -u $LinuxUser -- env "CLOUDFLARE_PLATFORM_DIR=$wslRoot" "CLOUDFLARE_PLATFORM_CHECKOUT_VERIFIED=1" bash -c $wslCommand
 Assert-ExitCode "Shared video broker deployment failed."
 
 Write-Host "[READY] Shared video broker deployed from its owning repository."
