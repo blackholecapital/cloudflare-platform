@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import worker, { apiHeaderValue, bindingValue } from '../src/index.js';
+import worker, { apiHeaderValue, bindingValue, lemonSliceProviderKey } from '../src/index.js';
 
 test('bindingValue supports legacy Worker secrets', async () => {
   assert.equal(await bindingValue('  legacy-secret  '), 'legacy-secret');
@@ -90,3 +90,26 @@ test('tenant readiness rejects a drifted capability token', async () => {
   assert.equal(body.error, 'Unauthorized');
 });
 
+
+test('tenant readiness uses one demo-plane capability even when a stale tenant alias exists', async () => {
+  const response = await worker.fetch(new Request('https://video.example/internal/tenant/readiness?tenant=ai-fans', {
+    headers: { 'x-blackhole-capability-token': 'shared-capability' },
+  }), {
+    BLACKHOLE_CAPABILITY_TOKEN: { get: async () => 'shared-capability' },
+    BLACKHOLE_AI_FANS_CAPABILITY_TOKEN: { get: async () => 'stale-tenant-alias' },
+    LIVEKIT_URL: 'wss://example.livekit.cloud',
+    LIVEKIT_API_KEY: { get: async () => 'api-key' },
+    LIVEKIT_API_SECRET: { get: async () => 'api-secret' },
+    VIDEO_AGENT_NAME: 'blackhole-avatar',
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).capabilityAuthorized, true);
+});
+
+test('all trusted tenants can reuse the shared LemonSlice provider credential', async () => {
+  const env = { LEMONSLICE_AI_FANS_API_KEY: { get: async () => 'shared-provider-key' } };
+  assert.equal(await lemonSliceProviderKey(env, 'ai-fans'), 'shared-provider-key');
+  assert.equal(await lemonSliceProviderKey(env, 'eila-overwatch'), 'shared-provider-key');
+  assert.equal(await lemonSliceProviderKey(env, 'buddys'), 'shared-provider-key');
+});
