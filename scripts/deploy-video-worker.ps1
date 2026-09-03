@@ -30,11 +30,13 @@ $drive = $Matches[1].ToLowerInvariant()
 $relative = $Matches[2].Replace("\", "/")
 $wslRoot = "/mnt/$drive/$relative"
 $wslScript = "$wslRoot/scripts/deploy-video-worker.sh"
-$wslCommand = "set -o pipefail; sed 's/\r$//' '$wslScript' | bash"
+# Pass the script path as argv[1]. Never interpolate a Windows-derived path
+# into Bash source; apostrophes and other shell characters must remain data.
+$wslCommand = 'set -o pipefail; sed ''s/\r$//'' "$1" | bash'
 
 Write-Host ""
 Write-Host "==> Deploying only the shared blackhole-video-worker"
-& wsl.exe -d $Distribution -u $LinuxUser -- env "CLOUDFLARE_PLATFORM_DIR=$wslRoot" bash -c $wslCommand
+& wsl.exe -d $Distribution -u $LinuxUser -- env "CLOUDFLARE_PLATFORM_DIR=$wslRoot" bash -c $wslCommand bash $wslScript
 Assert-ExitCode "Shared video broker deployment failed."
 
 Write-Host "[READY] Shared video broker deployed from its owning repository."
