@@ -16,13 +16,6 @@ dataset = "blackhole_video_events"
 binding = "EVENTS"
 queue = "blackhole-communication-events"
 
-# The broker and every tenant adapter resolve the same capability credential
-# from Cloudflare Secrets Store. This removes dashboard-secret drift.
-[[secrets_store_secrets]]
-binding = "BLACKHOLE_CAPABILITY_TOKEN"
-store_id = "00b34d29f2c94685b0f250dc5b1ee875"
-secret_name = "XYZ_DEMO_EILA_RUNTIME_TOKEN"
-
 # Required production secrets. Never commit their values:
 #   LIVEKIT_API_KEY
 #   LIVEKIT_API_SECRET
