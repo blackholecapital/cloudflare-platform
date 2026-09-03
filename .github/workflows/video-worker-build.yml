@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: "22"
       - run: npm install --prefix shared/video-worker
+      - run: npm test --prefix shared/video-worker
       - run: node --check shared/video-worker/src/index-eila-fallback.js
       - run: node --check shared/video-worker/src/index.js
       - run: bash -n scripts/deploy-video-worker.sh
