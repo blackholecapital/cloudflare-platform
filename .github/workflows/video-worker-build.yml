@@ -6,6 +6,7 @@ on:
       - "shared/video-worker/**"
       - "package.json"
       - "scripts/deploy-with-secrets-store.mjs"
+      - "scripts/deploy-video-worker.sh"
       - ".github/workflows/video-worker-build.yml"
 
 jobs:
@@ -19,6 +20,7 @@ jobs:
       - run: npm install --prefix shared/video-worker
       - run: node --check shared/video-worker/src/index-eila-fallback.js
       - run: node --check shared/video-worker/src/index.js
+      - run: bash -n scripts/deploy-video-worker.sh
       - name: Validate centralized tenant capability bindings
         run: |
           ! grep -q '\[\[secrets_store_secrets\]\]' shared/video-worker/wrangler.toml
