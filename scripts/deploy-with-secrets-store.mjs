@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+
+const WRANGLER_VERSION = process.env.WRANGLER_VERSION || '4.127.1';
+const WRANGLER = ['--yes', `wrangler@${WRANGLER_VERSION}`];
 
 function fail(message) {
   console.error(`ERROR: ${message}`);
@@ -34,11 +36,24 @@ function parseArgs(argv) {
   return out;
 }
 
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding:'utf8', stdio:options.capture ? ['ignore','pipe','pipe'] : 'inherit', ...options });
+function run(command, args, { capture = false, timeoutMs = 120000 } = {}) {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    timeout: timeoutMs,
+    maxBuffer: 10 * 1024 * 1024,
+    env: {
+      ...process.env,
+      CI: 'true',
+      WRANGLER_SEND_METRICS: 'false',
+    },
+  });
+  if (result.error?.code === 'ETIMEDOUT') {
+    fail(`${command} exceeded ${Math.ceil(timeoutMs / 60000)} minutes`);
+  }
   if (result.error) fail(result.error.message);
   if (result.status !== 0) {
-    if (options.capture) {
+    if (capture) {
       if (result.stdout) process.stderr.write(result.stdout);
       if (result.stderr) process.stderr.write(result.stderr);
     }
@@ -52,14 +67,19 @@ function stripAnsi(value='') {
 }
 
 function resolveStoreId(storeName) {
-  const result = run('npx', ['--yes','wrangler@4.123.0','secrets-store','store','list','--remote'], { capture:true });
+  console.log(`Resolving Cloudflare Secrets Store '${storeName}'...`);
+  const result = run(
+    'npx',
+    [...WRANGLER, 'secrets-store', 'store', 'list', '--remote'],
+    { capture:true, timeoutMs:120000 },
+  );
   const output = stripAnsi(`${result.stdout || ''}\n${result.stderr || ''}`);
   for (const line of output.split(/\r?\n/)) {
     if (!line.includes(storeName)) continue;
     const id = line.match(/\b[0-9a-f]{32}\b/i)?.[0];
     if (id) return id;
   }
-  fail(`Secrets Store '${storeName}' was not found. Run: npx wrangler@4.123.0 secrets-store store list --remote`);
+  fail(`Secrets Store '${storeName}' was not found. Run: npx wrangler@${WRANGLER_VERSION} secrets-store store list --remote`);
 }
 
 function bindingToml(storeId, bindings) {
@@ -83,7 +103,12 @@ try {
   fs.writeFileSync(generatedPath, generated, { mode:0o600 });
   console.log(`Secrets Store: ${args.store} (${storeId})`);
   console.log(`Binding ${args.bindings.length} centralized secret(s); values never leave Cloudflare.`);
-  run('npx', ['--yes','wrangler@4.123.0','deploy','--config',generatedPath,...args.passthrough]);
+  console.log('Deploying from committed relay configuration in non-interactive mode...');
+  run(
+    'npx',
+    [...WRANGLER, 'deploy', '--config', generatedPath, ...args.passthrough],
+    { timeoutMs: 15 * 60 * 1000 },
+  );
 } finally {
   try { fs.unlinkSync(generatedPath); } catch {}
 }
