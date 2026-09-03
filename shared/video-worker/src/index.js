@@ -159,6 +159,43 @@ function normalizeSession(body = {}) {
   };
 }
 
+async function tenantReadiness(request, env, url) {
+  const tenantId = cleanId(url.searchParams.get('tenant'), 64);
+  if (!tenantId) return json({ ok: false, error: 'tenant is required' }, 400);
+
+  const supplied = String(request.headers.get('x-blackhole-capability-token') || '');
+  if (!supplied || supplied !== await capabilitySecret(env, tenantId)) {
+    return json({
+      ok: false,
+      service: 'blackhole-video-worker',
+      tenantId,
+      capabilityAuthorized: false,
+      error: 'Unauthorized',
+    }, 401);
+  }
+
+  try {
+    const livekit = await liveKitConfig(env);
+    return json({
+      ok: true,
+      service: 'blackhole-video-worker',
+      tenantId,
+      capabilityAuthorized: true,
+      livekitConfigured: true,
+      agentName: livekit.agentName,
+    });
+  } catch (error) {
+    return json({
+      ok: false,
+      service: 'blackhole-video-worker',
+      tenantId,
+      capabilityAuthorized: true,
+      livekitConfigured: false,
+      error: error instanceof Error ? error.message : 'LiveKit configuration is unavailable',
+    }, 503);
+  }
+}
+
 async function createSession(request, env) {
   const body = await request.json().catch(() => ({}));
   const tenantId = cleanId(body.tenantId || body.tenant_id, 64);
@@ -282,6 +319,9 @@ export default {
     }
 
     try {
+      if (request.method === 'GET' && url.pathname === '/internal/tenant/readiness') {
+        return await tenantReadiness(request, env, url);
+      }
       if (request.method === 'POST' && url.pathname === '/internal/video/session') {
         return await createSession(request, env);
       }
