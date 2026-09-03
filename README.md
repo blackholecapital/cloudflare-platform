@@ -1,11 +1,11 @@
 # cloudflare-platform
 
-Cloudflare edge relay for Blackhole demonstration assistants. This repository does not contain or run a model, voice engine, avatar agent, Windows service, or tenant application.
+Generic Cloudflare infrastructure, bootstrap, inventory, and control-plane resources for Blackhole systems.
 
-## Demo-plane capability boundary
+## Ownership boundary
 
-The current demo plane intentionally uses one centralized capability secret for every trusted tenant adapter. Tenant IDs select routing, avatar, persona, and voice; they are not a cryptographic security boundary. Repository isolation is enforced through deployment ownership: this repository deploys only `blackhole-video-worker`, while tenant repositories deploy only their adapters and assets. The EILA Overwatch repository owns the one local Windows execution plane.
+This repository does **not** own or deploy the shared video relay, any tenant application, a model, voice engine, avatar agent, Windows service, or local runtime.
 
-`blackhole-video-worker` is a generic pass-through: it validates the plane credential, creates a LiveKit dispatch for `blackhole-avatar`, and relays LemonSlice requests. It never executes LLM or TTS inference. Adding a trusted demo tenant must not require a new capability binding or a code change here.
+The shared LiveKit room/dispatch relay is independently owned by [blackholecapital/blackhole-video-worker](https://github.com/blackholecapital/blackhole-video-worker). Tenant repositories own their adapters and assets. `EILA-Overwatch` owns the shared Windows execution plane.
 
-Before admitting untrusted tenant operators or production multi-tenant traffic, replace the shared capability with distinct Secrets Store entries per tenant and remove the generic `BLACKHOLE_CAPABILITY_TOKEN` fallback.
+Do not add `blackhole-video-worker` source, Wrangler configuration, Secrets Store deployment, tests, or deployment scripts back into this repository.

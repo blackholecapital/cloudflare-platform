@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "inventory": "tsx bootstrap/src/cli/main.ts inventory",
-    "deploy:video:store": "node scripts/deploy-with-secrets-store.mjs --config shared/video-worker/wrangler.toml --store default_secrets_store --bind LIVEKIT_API_KEY=XYZ_DEMO_LIVEKIT_API_KEY --bind LIVEKIT_API_SECRET=XYZ_DEMO_LIVEKIT_API_SECRET --bind BLACKHOLE_CAPABILITY_TOKEN=XYZ_DEMO_EILA_RUNTIME_TOKEN"
+    "inventory": "tsx bootstrap/src/cli/main.ts inventory"
   },
   "dependencies": {
     "commander": "^14.0.0",

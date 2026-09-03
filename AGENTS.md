@@ -1,21 +1,20 @@
-# Cloudflare edge relay deployment boundary
+# Cloudflare platform ownership boundary
 
 > **MANDATORY — READ BEFORE CHANGING OR DEPLOYING THIS REPOSITORY.**
 
-This repository is an edge relay only. It may authenticate a trusted tenant adapter, create a LiveKit dispatch, and relay a provider request. It does not own an assistant, tenant, model, voice engine, avatar agent, local runtime, tunnel origin, or Windows/WSL service.
+This repository owns generic Cloudflare infrastructure, bootstrap, inventory, and control-plane resources only.
 
 ## Allowed
 
-- Maintain and deploy only `blackhole-video-worker` and generic Cloudflare infrastructure owned here.
-- Bind the one trusted demo-plane capability credential without reading or rotating its value.
-- Forward tenant metadata such as tenant ID, assistant ID, avatar asset, voice ID, and prompt without interpreting it as executable platform configuration.
-- Use `blackholecapital/AI-Agent-Command-Center` as the architecture authority and `blackholecapital/EILA-Overwatch` as the current local execution owner.
+- Maintain generic Cloudflare infrastructure and platform control-plane resources already declared here.
+- Use product and runtime repositories as read-only architectural references.
+- Preserve explicit resource ownership boundaries.
 
 ## Forbidden
 
-- Do not add LLM, TTS, voice, avatar, GPU, LiveKit agent, Windows, WSL, Ollama, Chatterbox, or tenant application code.
-- Do not add tenant-specific capability aliases or require a platform commit to onboard a trusted demo tenant.
-- Do not deploy a tenant repository or the local execution plane from this repository.
-- Do not copy runtime code from EILA Overwatch or another product.
+- Do not add, maintain, or deploy `blackhole-video-worker` from this repository. Its sole owner is `blackholecapital/blackhole-video-worker`.
+- Do not add a tenant application, tenant adapter, model, LLM, TTS, voice engine, avatar agent, GPU code, Windows/WSL service, tunnel origin, or local runtime.
+- Do not deploy another repository from here.
+- Do not copy shared relay or runtime code into this repository.
 
-The fixed boundary is: `tenant adapter -> blackhole-video-worker -> LiveKit dispatch`. Everything after the dispatch runs on the EILA-owned local execution plane.
+The fixed video boundary is external to this repository: `tenant adapter -> blackhole-video-worker -> LiveKit dispatch -> shared execution plane`.
