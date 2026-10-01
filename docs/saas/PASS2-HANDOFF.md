@@ -17,3 +17,7 @@ After separate acceptance, later payment work must resolve:
 - Secure guest/legacy claim authority, later invitations/access state transitions and private R2 download redemption. No live access links or redemption credentials currently exist.
 
 No push, PR, merge, deployment, remote migration, Cloudflare mutation, payment/provider activity, message, credential change or sales activation is part of this handoff.
+
+## Correction checkpoint
+
+R1/R2/R3 were reproduced before correction and pass locally afterward; Checkout now requires its narrow transactional ownership/replay guard and a verified frozen legacy-identity inventory. It preserves settlement under replay and requests redelivery for unprocessed supported events. This does not implement an event/outbox or subscription ledger. Existing shared-tenant foundation commits are preserved. The external manifest records original base, exact prior delivered/correction base and new head/tree hashes after final commits. No candidate is accepted yet: complete authorized checkout validation and the four presentation failures remain unresolved. Do not start Pass 2.

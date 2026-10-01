@@ -1,5 +1,7 @@
 # Pass 1 implementation report
 
+**Correction checkpoint:** R1/R2/R3 now pass locally; Checkout uses a mandatory transactional D1 ownership guard and its own locked toolchain (43/43 tests). Complete source-checkout validation remains blocked. See [PASS1-CORRECTION-REPORT.md](PASS1-CORRECTION-REPORT.md) for authoritative current checkout behavior, before/after logs and remaining gaps. The initial implementation/validation record below is retained as history; its KV write path and companion-toolchain notes are superseded by that correction.
+
 Status: **PASS 1 INCOMPLETE**. This is local implementation and validation, not release approval. Production is unchanged and may retain the audited exposures.
 
 ## Exact source and authority
@@ -28,7 +30,7 @@ Fresh isolated directories were used; no shared checkout was edited. BHC AGENTS.
 - **D: checkout trust** — `contracts/saas-v1.mjs`, Checkout `src/trust.mjs`, and BHC `lib/checkout-service.mjs` define the signed exact-body/method/route/caller/key/environment/time boundary. Both create and status are authenticated; browser origins/cookies are rejected internally. Unknown fields, destination overrides, bad scopes, absent/separate-key configuration and tampering fail before Stripe. BHC Lead, Microstore, Venue, Studio and PayMe server adapters use this boundary. Trusted caller/product configuration resolves callback/return URLs, and redirects are disabled on outbound calls. Existing mixed billing and payme-idempotent-v1 exact retry protections remain. HMAC-authenticated lost-response recovery persists a session binding before evaluating paid state. Status-only or unpaid lead callbacks and unbound/mismatched Studio callbacks cannot mark paid. Checkout webhooks require a matching stored checkout session and paid evidence; metadata destinations and invoice/subscription IDs cannot masquerade as checkout sessions.
 - **E: versioned contracts** — canonical generic source is BHC `contracts/saas-v1.mjs`; byte-identical artifacts plus SOURCE.json are copied into the two narrowly authorized repos. Validators cover offer resolution/snapshots, service auth/context, normalized payment evidence, enrollment, handoff, inactive membership/download descriptors, targets and ownership. Fixture adapters return explicit unavailable with no URL. No product-specific installer or arbitrary-command executor was added.
 
-## Baseline and final validation
+## Baseline and initial-delivery validation (historical)
 
 Runtime: Node v24.19.0, npm 11.9.0, Python 3.12.14, TypeScript 7.0.2, Workers types 5.20260730.1. Exact installed versions are also recorded in runtime-versions.json. BHC and platform dependencies were installed from their existing lockfiles with lifecycle scripts ignored. No Checkout-worker dependency resolution/upgrade was performed; typecheck/build used the locked companion platform toolchain. Node >=24 is now declared for Checkout's native TypeScript test execution.
 
