@@ -1,233 +1,46 @@
-import { Hono } from "hono";
-import { provisionCustomer } from "./services/provisioner.js";
-import { getCustomerState } from "./routes/state.js";
-import { createPlan } from "./services/planner.js";
-import { executePlan } from "./services/executor.js";
-import { listWorkers, inspectWorker, inspectWorkerSource } from "./providers/workers.js";
-
-
+import { Hono } from 'hono';
+import { getCustomerState } from './routes/state.js';
+import { listWorkers, inspectWorker } from './providers/workers.js';
+import { authorize, operator, legacyRequest, createTarget, readTarget } from './security.js';
+import { errorResponse, fail, id } from '../contracts/saas-v1.mjs';
 const app = new Hono();
-
-async function sha256(value) {
-  return new Uint8Array(
-    await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(String(value || ""))
-    )
-  );
-}
-
-async function secretsEqual(a, b) {
-  const left = await sha256(a);
-  const right = await sha256(b);
-  let diff = left.length ^ right.length;
-  const length = Math.max(left.length, right.length);
-  for (let i = 0; i < length; i += 1) {
-    diff |= (left[i] ?? 0) ^ (right[i] ?? 0);
-  }
-  return diff === 0;
-}
-
-async function requireOpsAuth(c) {
-  const configured = String(c.env.OPS_API_TOKEN || "");
-  if (!configured) {
-    return c.json({ error: "OPS_API_TOKEN is not configured" }, 503);
-  }
-
-  const authorization = String(c.req.header("Authorization") || "");
-  const bearer = authorization.toLowerCase().startsWith("bearer ")
-    ? authorization.slice(7).trim()
-    : "";
-  const provided = String(c.req.header("X-Ops-Token") || bearer || "");
-
-  if (!provided || !(await secretsEqual(provided, configured))) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-
-  return null;
-}
-
-app.options("*", (c) => {
-
-  c.header(
-    "Access-Control-Allow-Origin",
-    "https://onboard.blackholecapital.xyz"
-  );
-
-  c.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, OPTIONS"
-  );
-
-  c.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Ops-Token"
-  );
-
-  return c.body(null, 204);
-
-});
-
-app.use("*", async (c, next) => {
-
-  c.header(
-    "Access-Control-Allow-Origin",
-    "https://onboard.blackholecapital.xyz"
-  );
-
-  c.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, OPTIONS"
-  );
-
-  c.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Ops-Token"
-  );
-
-  if (c.req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204
-    });
-  }
-
+app.options('*', c => c.body(null, 204));
+app.use('*', async (c, next) => {
+  c.header('Cache-Control', 'no-store'); c.header('X-Content-Type-Options', 'nosniff');
+  c.header('Access-Control-Allow-Origin', 'https://onboard.blackholecapital.xyz');
+  c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Ops-Token');
+  const path = new URL(c.req.url).pathname;
+  // Public metadata is exact-route only. Unknown aliases also encounter auth.
+  if (!(c.req.method === 'GET' && ['/', '/api/health'].includes(path))) c.set('principal', await authorize(c.req.raw, c.env));
+  if (new URL(c.req.url).search) fail('unknown_query');
   await next();
-
 });
-
-
-app.get("/", c => {
-
-  return c.json({
-    service: "Cloudflare Operations Platform",
-    version: "1.1.0",
-    status: "online"
-  });
-
+app.get('/', c => c.json({ service: 'Cloudflare Operations Platform', version: '1.2.0', status: 'online' }));
+app.get('/api/health', c => c.json({ service: 'Cloudflare Operations Platform', legacyExecution: false, tenantEnrollment: false }));
+app.get('/api/workers', async c => { operator(c.get('principal')); const workers = await listWorkers(c.env); return c.json({ count: workers.length, workers }); });
+app.get('/api/workers/:name', async c => { operator(c.get('principal')); id(c.req.param('name')); return c.json(await inspectWorker(c.env, c.req.param('name'))); });
+// Raw Worker source may contain embedded credentials. Keep the legacy route fail-closed.
+app.get('/api/workers/:name/source', c => { operator(c.get('principal')); fail('source_export_unavailable', 503); });
+app.get('/api/customer/:id', async c => {
+  operator(c.get('principal')); const customer = id(c.req.param('id'));
+  const state = await getCustomerState(c.env, customer); if (!state) fail('customer_not_found', 404);
+  return c.json({ legacy: true, ownershipVerified: false, customer: state.customer, resources: state.resources.map(r => ({ id: r.id, resource_type: r.resource_type, resource_id: r.resource_id, resource_name: r.resource_name, created_at: r.created_at })) });
 });
-
-app.get("/api/workers", async c => {
-  const denied = await requireOpsAuth(c);
-  if (denied) return denied;
-
-  const workers = await listWorkers(c.env);
-  return c.json({ count: workers.length, workers });
+app.post('/api/preview', async c => {
+  operator(c.get('principal')); const request = await legacyRequest(c.req.raw);
+  // A company/slug may describe a legacy proposal, but never authorizes adoption.
+  return c.json({ status: 'unavailable', executionEnabled: false, reason: 'legacy_allocator_not_accepted', requestedServices: request.services, tenantEnrollment: false });
 });
-
-app.get("/api/workers/:name", async c => {
-  const denied = await requireOpsAuth(c);
-  if (denied) return denied;
-
-  const worker = await inspectWorker(c.env, c.req.param("name"));
-  return c.json(worker);
+app.post('/api/provision', async c => {
+  operator(c.get('principal')); await legacyRequest(c.req.raw);
+  if (c.env.LEGACY_PROVISION_EXECUTION !== 'true') fail('legacy_execution_disabled', 503);
+  // Even an accidentally enabled gate cannot certify the known broken allocator.
+  fail('legacy_allocator_not_accepted', 503);
 });
-
-app.get("/api/workers/:name/source", async c => {
-  const denied = await requireOpsAuth(c);
-  if (denied) return denied;
-
-  const source = await inspectWorkerSource(c.env, c.req.param("name"));
-  return c.json(source);
-});
-
-
-app.get("/api/customer/:id", async c => {
-
-    const customer =
-        c.req.param("id");
-
-    const state =
-        await getCustomerState(
-            c.env,
-            customer
-        );
-
-
-    if(!state){
-
-        return c.json(
-            {
-                error:"Customer not found"
-            },
-            404
-        );
-
-    }
-
-
-    return c.json(state);
-
-});
-
-
-app.get("/api/health", c => {
-
-  return c.json({
-    connected: true,
-    status: "healthy",
-    workerInspection: true
-  });
-
-});
-
-
-app.post("/api/preview", async c => {
-
-    const request =
-        await c.req.json();
-
-
-    const plan =
-        await createPlan(
-            c.env,
-            request
-        );
-
-
-    return c.json({
-
-        status:"preview",
-
-        plan
-
-    });
-
-});
-
-
-app.post("/api/provision", async c => {
-
-  const request = await c.req.json();
-
-  const plan = await createPlan(
-    c.env,
-    request
-  );
-
-  const result = await executePlan(
-    c.env,
-    request,
-    plan
-  );
-
-  return c.json(result);
-
-});
-
-
-
-app.onError((err, c) => {
-
-  console.error(err);
-
-  return c.json({
-
-    error: err.message,
-
-    stack: err.stack
-
-  }, 500);
-
-});
-
+app.post('/api/tenant-enrollment', c => { operator(c.get('principal')); fail('product_adapter_required', 501); });
+app.post('/api/targets', async c => { operator(c.get('principal')); return c.json(await createTarget(c.req.raw, c.env), 201); });
+app.get('/api/targets/:id', async c => c.json(await readTarget(c.env, c.get('principal'), c.req.param('id'))));
+app.notFound(() => Response.json({ error: 'not_found' }, { status: 404 }));
+app.onError((error) => errorResponse(error));
 export default app;
