@@ -1,0 +1,7 @@
+{
+  "contractVersion": "bhc-saas-v1",
+  "checkoutAuthVersion": "bhc-checkout-auth-v1",
+  "canonicalRepository": "blackholecapital/BHC",
+  "canonicalPath": "contracts/saas-v1.mjs",
+  "sha256": "b22d5fc4923b3ebdbeb5c34e8632e7e6eea292675eca1dc32961615436fb6c52"
+}
